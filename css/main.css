@@ -1,0 +1,215 @@
+/* ============================================
+   HOLO FRAMEWORK – Main Styles
+   ============================================ */
+
+:root {
+  --midnight: #004c54;
+  --midnight-light: #007680;
+  --midnight-vivid: #00a896;
+  --midnight-neon: #00e5bf;
+  --silver: #a5acaf;
+  --silver-bright: #cdd3d6;
+  --silver-pure: #e2e8f0;
+  --obsidian: #000000;
+  --obsidian-soft: #030508;
+  --bvg-yellow: #f0d722;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Outfit', sans-serif;
+  color: var(--silver-bright);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html, body { cursor: none; }
+  body.modal-open { cursor: auto; }
+  body.modal-open * { cursor: auto; }
+}
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 76, 84, 0.028) 3px,
+    rgba(0, 76, 84, 0.028) 5px
+  );
+  opacity: 0.35;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.module-slot {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.module-slot > .module-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  transition:
+    transform 0.85s cubic-bezier(0.22, 1, 0.32, 1),
+    opacity 0.7s ease,
+    filter 0.7s ease;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+body.state-home #carousel-slot .module-inner,
+body.state-home #sphere-slot .module-inner,
+body.state-home #neural-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+body.state-carousel #carousel-slot { z-index: 100; }
+body.state-carousel #sphere-slot,
+body.state-carousel #neural-slot { z-index: 5; pointer-events: none; }
+
+body.state-carousel #carousel-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: none;
+  animation: openFromCenter 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.02s backwards;
+}
+
+body.state-carousel #sphere-slot .module-inner,
+body.state-carousel #neural-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+body.state-sphere #sphere-slot { z-index: 100; }
+body.state-sphere #carousel-slot,
+body.state-sphere #neural-slot { z-index: 5; pointer-events: none; }
+
+body.state-sphere #sphere-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: none;
+  animation: openFromCenter 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.02s backwards;
+}
+
+body.state-sphere #carousel-slot .module-inner,
+body.state-sphere #neural-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+body.state-neural #neural-slot { z-index: 100; }
+body.state-neural #carousel-slot,
+body.state-neural #sphere-slot { z-index: 5; pointer-events: none; }
+
+body.state-neural #neural-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: none;
+}
+
+/* ---------- WATCHTIME ---------- */
+
+/* Versteckt, solange nicht aktiv. visibility (verzögert) sorgt dafür, dass
+   Suchfeld & Buttons nicht per Tab erreichbar sind, während man sie nicht sieht. */
+body:not(.state-watchtime) #watchtime-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    transform 0.85s cubic-bezier(0.22, 1, 0.32, 1),
+    opacity 0.7s ease,
+    filter 0.7s ease,
+    visibility 0s linear 0.85s;
+}
+
+body.state-watchtime #watchtime-slot { z-index: 100; }
+
+body.state-watchtime #watchtime-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: none;
+  visibility: visible;
+  animation: openFromCenter 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.02s backwards;
+}
+
+body.state-watchtime #carousel-slot,
+body.state-watchtime #sphere-slot,
+body.state-watchtime #neural-slot { z-index: 5; pointer-events: none; }
+
+/* ---------- NFL-SPIELPLAN ---------- */
+
+body:not(.state-nfl) #nfl-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    transform 0.85s cubic-bezier(0.22, 1, 0.32, 1),
+    opacity 0.7s ease,
+    filter 0.7s ease,
+    visibility 0s linear 0.85s;
+}
+
+body.state-nfl #nfl-slot { z-index: 100; }
+
+body.state-nfl #nfl-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: none;
+  visibility: visible;
+  animation: openFromCenter 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.02s backwards;
+}
+
+body.state-nfl #carousel-slot,
+body.state-nfl #sphere-slot,
+body.state-nfl #watchtime-slot,
+body.state-nfl #neural-slot { z-index: 5; pointer-events: none; }
+
+body.state-nfl #carousel-slot .module-inner,
+body.state-nfl #sphere-slot .module-inner,
+body.state-watchtime #carousel-slot .module-inner,
+body.state-watchtime #sphere-slot .module-inner,
+body.state-neural #carousel-slot .module-inner,
+body.state-neural #sphere-slot .module-inner {
+  transform: translate3d(0, 0, 0) scale(0.2);
+  opacity: 0;
+  filter: blur(20px);
+  pointer-events: none;
+}

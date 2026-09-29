@@ -1,0 +1,226 @@
+/* Sphere */
+.sphere-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.sphere-viewport {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+  z-index: 15;
+}
+
+.sphere-viewport:active {
+  cursor: grabbing;
+}
+
+.gyro-ring {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.gyro-ring-outer {
+  border: 1.5px solid rgba(226, 232, 240, 0.12);
+  box-shadow: 0 0 60px rgba(0, 229, 191, 0.12);
+}
+
+.gyro-ring-inner {
+  border: 1px dashed rgba(0, 229, 191, 0.25);
+  box-shadow:
+    inset 0 0 45px rgba(0, 229, 191, 0.08),
+    0 0 30px rgba(0, 76, 84, 0.28);
+}
+
+#sphere-core-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--midnight-neon);
+  box-shadow: 0 0 18px var(--midnight-neon);
+  border: 1px solid rgba(255,255,255,0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+#sphere-anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.sphere-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: center center;
+  will-change: transform, opacity, filter;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.sphere-capsule {
+  background: linear-gradient(135deg, rgba(3, 30, 35, 0.85) 0%, rgba(1, 14, 18, 0.95) 100%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(226, 232, 240, 0.26);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.32),
+    0 14px 34px -6px rgba(0, 0, 0, 0.9),
+    0 0 24px -3px rgba(0, 229, 191, 0.35);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 12px;
+  position: relative;
+}
+
+.sphere-card:hover .sphere-capsule {
+  background: linear-gradient(135deg, rgba(0, 80, 90, 0.94) 0%, rgba(2, 26, 31, 0.98) 100%);
+  border-color: rgba(248, 250, 252, 0.9);
+  box-shadow:
+    inset 0 1px 4px rgba(255, 255, 255, 0.8),
+    0 0 50px rgba(0, 229, 191, 0.75);
+  transform: scale(1.08);
+}
+
+.sphere-favicon-wrap {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: radial-gradient(circle at 30% 30%, rgba(0,229,191,0.2), rgba(0,35,40,0.9) 85%);
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  flex-shrink: 0;
+}
+
+.sphere-favicon-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.sphere-meta {
+  display: flex;
+  flex-direction: column;
+  padding-right: 14px;
+  overflow: hidden;
+  max-width: 120px;
+}
+
+.sphere-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--silver-pure);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sphere-card:hover .sphere-title {
+  color: var(--midnight-neon);
+}
+
+.sphere-domain {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  color: rgba(148, 163, 184, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delete-node-btn {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.8);
+  padding: 2px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: rgba(148, 163, 184, 0.8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.sphere-capsule:hover .delete-node-btn {
+  opacity: 0.75;
+  transform: translateY(-50%) scale(1);
+}
+
+.delete-node-btn:hover {
+  opacity: 1 !important;
+  color: #ff6b6b !important;
+}
+
+/* Add Favorite Button */
+#btn-add-favorite {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 65;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f8fafc;
+  background: radial-gradient(circle at 35% 30%, rgba(0, 229, 191, 0.4) 0%, rgba(0, 76, 84, 0.9) 50%, rgba(1, 18, 22, 0.95) 100%);
+  border: 1.5px solid rgba(226, 232, 240, 0.55);
+  box-shadow:
+    inset 0 1.5px 3px rgba(255, 255, 255, 0.5),
+    0 0 35px rgba(0, 229, 191, 0.45),
+    0 12px 30px -6px rgba(0,0,0,0.9);
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.state-sphere #btn-add-favorite {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#btn-add-favorite:hover {
+  border-color: rgba(255,255,255,0.9);
+  box-shadow:
+    inset 0 2px 5px rgba(255,255,255,0.8),
+    0 0 55px rgba(0, 229, 191, 0.75);
+  transform: scale(1.08) translateY(-2px);
+}
+
+#btn-add-favorite:hover i {
+  transform: rotate(90deg);
+  color: var(--midnight-neon);
+}
+
+#btn-add-favorite i {
+  transition: transform 0.3s ease;
+}

@@ -1,0 +1,1458 @@
+import { PROJECTS } from '../data/projects.js';
+import { ViewManager } from '../core/ViewManager.js';
+import { audio } from '../core/AudioEngine.js';
+import { Mat3 } from '../core/utils.js';
+
+// Rotationsmatrix gegen Rundungsdrift wieder orthonormal machen (Gram-Schmidt)
+const orthonormalize = (m) => {
+  const norm = (v) => {
+    const l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const a = norm([m[0], m[1], m[2]]);
+  const d = a[0] * m[3] + a[1] * m[4] + a[2] * m[5];
+  const b = norm([m[3] - d * a[0], m[4] - d * a[1], m[5] - d * a[2]]);
+  const c = [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
+  ];
+  return [...a, ...b, ...c];
+};
+
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const easeInCubic = (t) => t * t * t;
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+const easeOutBack = (t, s = 1.2) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
+const rand = (min, max) => min + Math.random() * (max - min);
+// 0 bei x = edge0, 1 bei x = edge1, weich dazwischen (edge0 > edge1 erlaubt)
+const smoothstep = (edge0, edge1, x) => {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+};
+
+// Zeitplan der Öffnungsanimation (ms)
+const INTRO = {
+  charge: 1100,   // Aufladen bis zum Knall
+  fly: 950,       // Flugdauer eines Widgets
+  stagger: 55     // Versatz zwischen den Widgets
+};
+const INTRO_REDUCED = { charge: 250, fly: 420, stagger: 0 };
+
+export class OrbitMenu {
+  constructor(rootEl, options = {}) {
+    this.root = rootEl;
+    this.onOpenProject = options.onOpenProject || (() => {});
+
+    this._items = [];
+    this._toast = null;
+    this._toastTimer = null;
+    this._paused = false;
+    this._rafId = null;
+    // Ausrichtung des Orbits als Rotationsmatrix (Trackball) – frei in alle Richtungen
+    this._orientation = Mat3.identity();
+
+    this._targetParallaxX = 0;
+    this._targetParallaxY = 0;
+    this._currentParallaxX = 0;
+    this._currentParallaxY = 0;
+
+    this._isDragging = false;
+    this._dragLastX = 0;
+    this._dragLastY = 0;
+    this._dragLastTime = 0;
+    // Drehgeschwindigkeit um die Bildschirm-X- und -Y-Achse (rad/ms) für den Schwung
+    this._spin = { x: 0, y: 0 };
+
+    this._radiusMin = 300;
+    this._radiusMax = 460;
+
+    this._autoRotationSpeed = 0.05;
+    this._dragSensitivity = 0.008;
+    this._inertiaDecay = 0.94;
+    this._baseTiltX = 10;
+
+    this._expanded = false;
+    this._transitioning = false;
+    this._transitionTimer = null;
+    this._intro = null;      // { release, fly } während die Widgets rausfliegen
+    this._fxTimers = [];
+
+    this._three = null;
+    this._earthGroup = null;
+    this._earthRafId = null;
+
+    // Frame-Drosselung für den Widget-RAF-Loop
+    this._lastWidgetFrame = 0;
+    this._widgetFrameInterval = 1000 / 60; // 60 fps – die Flug-Animation läuft hier mit
+
+    // Dirty-Flag: nur rendern, wenn sich wirklich was ändert
+    this._widgetsDirty = true;
+
+    this._build();
+    this._bindMouse();
+    this._bindDrag();
+    this._bindResize();
+    this._bindViewChanges();
+    this._startRaf();
+  }
+
+  _build() {
+    this.root.innerHTML = '';
+
+    const orbit = document.createElement('div');
+    orbit.className = 'orbit';
+    this._orbit = orbit;
+    const cluster = document.createElement('div');
+    cluster.className = 'orbit-cluster';
+    this._cluster = cluster;
+    orbit.appendChild(cluster);
+    this.root.appendChild(orbit);
+
+    // Die Erde liegt IM Cluster: So teilt sie sich die Stapel-Ebene mit den
+    // Widgets und wird per z-index zwischen vorne (> 1000) und hinten (< 1000)
+    // einsortiert. Siehe _applyItemTransform.
+    const core = document.createElement('div');
+    core.className = 'orbit-core';
+    core.title = 'Klicken zum Öffnen';
+    this._core = core;
+
+    core.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._transitioning) return;
+      if (this._isDragging) return;
+      if (this._expanded) return;
+      this.expand();
+    });
+
+    const earth = document.createElement('div');
+    earth.className = 'orbit-earth';
+    core.appendChild(earth);
+    cluster.appendChild(core);
+
+    this._buildEarth(earth);
+
+    this._total = PROJECTS.length;
+    const n = this._total;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+    PROJECTS.forEach((project, i) => {
+      // Fibonacci-Kugel: gleichmäßige Verteilung über die Kugelschale.
+      // (i + 0.5) hält die Widgets von den Polen fern (y bleibt in ±(1 - 1/n)),
+      // dort würden sie sich bei der Rotation kaum bewegen.
+      // Bildschirm-y zeigt nach unten → erstes Projekt oben, letztes unten.
+      const uy = ((i + 0.5) / n) * 2 - 1;
+      const ringScale = Math.sqrt(1 - uy * uy);
+      const angle = goldenAngle * i;
+
+      const ux = Math.cos(angle) * ringScale;
+      const uz = Math.sin(angle) * ringScale;
+
+      // Alle auf derselben Schale (Mitte zwischen _radiusMin und _radiusMax).
+      // Der absolute Radius wird pro Frame berechnet, damit Resize greift.
+      const rFactor = 0.5;
+
+      const phase = Math.random() * Math.PI * 2;
+      const floatAmp = 6 + Math.random() * 6;
+      const floatSpeed = 0.3 + Math.random() * 0.4;
+
+      const item = document.createElement('button');
+      item.className = 'orbit-item';
+      item.dataset.projectId = project.id;
+      item.dataset.target = project.target || 'placeholder';
+      item.title = project.name;
+
+      item.innerHTML = `
+        <div class="orbit-item-inner">
+          <i class="${project.icon}"></i>
+          <span class="orbit-item-label">${project.name}</span>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._isDragging) return;
+        if (!this._expanded || this._transitioning) return;
+        this._handleClick(project, item);
+      });
+
+      item.addEventListener('mouseenter', () => { this._paused = true; });
+      item.addEventListener('mouseleave', () => { this._paused = false; });
+
+      cluster.appendChild(item);
+
+      this._items.push({
+        el: item,
+        project,
+        ux, uy, uz,
+        rFactor,
+        phase,
+        floatAmp,
+        floatSpeed,
+        warping: false
+      });
+    });
+
+    this._toast = document.createElement('div');
+    this._toast.id = 'orbit-toast';
+    this.root.appendChild(this._toast);
+  }
+
+  /**
+   * Projiziert ein Item (inkl. optionalem Schweben) mit aktueller Rotation & Neigung.
+   * extraRot dreht das Item zusätzlich um die Y-Achse (Spirale beim Rausfliegen).
+   */
+  _projectItem(item, floatY = 0, floatZ = 0, extraRot = 0) {
+    const r = this._radiusMin + item.rFactor * (this._radiusMax - this._radiusMin);
+    const x0 = item.ux * r;
+    const y0 = item.uy * r + floatY;
+    const z0 = item.uz * r + floatZ;
+
+    // Spirale beim Rausfliegen: vorab um die eigene Y-Achse drehen
+    let lx = x0;
+    let lz = z0;
+    if (extraRot) {
+      const c = Math.cos(extraRot);
+      const s = Math.sin(extraRot);
+      lx = x0 * c + z0 * s;
+      lz = -x0 * s + z0 * c;
+    }
+
+    // Ausrichtung des Orbits (frei drehbar)
+    const [x1, y1, z1] = Mat3.transformPoint(this._orientation, [lx, y0, lz]);
+
+    // Blickneigung (Grundneigung + Maus-Parallax) obendrauf
+    const tiltXRad = ((this._currentParallaxX + this._baseTiltX) * Math.PI) / 180;
+    const cosX = Math.cos(tiltXRad);
+    const sinX = Math.sin(tiltXRad);
+
+    return {
+      x: x1,
+      y: y1 * cosX - z1 * sinX,
+      z: y1 * sinX + z1 * cosX
+    };
+  }
+
+  /**
+   * Dreht den Orbit um eine Achse in der Bildschirmebene (Trackball):
+   * wx = Winkel um die X-Achse (hoch/runter), wy = um die Y-Achse (links/rechts).
+   */
+  _rotateScreen(wx, wy) {
+    const angle = Math.hypot(wx, wy);
+    if (angle < 1e-7) return;
+    const r = Mat3.fromAxisAngle([wx, wy, 0], angle);
+    this._orientation = orthonormalize(Mat3.multiply(r, this._orientation));
+  }
+
+  _applyItemTransform(el, p, scaleMul = 1, fade = 1) {
+    const depthNorm = Math.max(-1, Math.min(1, p.z / this._radiusMax));
+    const scale = (0.7 + (depthNorm + 1) * 0.5 * 0.3) * scaleMul;
+    const opacity = (0.35 + (depthNorm + 1) * 0.5 * 0.65) * fade;
+
+    el.style.transform =
+      `translate3d(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px, ${p.z.toFixed(2)}px) ` +
+      `scale(${scale.toFixed(3)})`;
+    // Als CSS-Variable, damit Placeholder/Empty-Dimmung im CSS weiter greift
+    el.style.setProperty('--depth-opacity', opacity.toFixed(3));
+    // Tiefensortierung: Die Erde hat z-index 1000 (= Tiefe 0). Vordere Widgets
+    // liegen darüber, hintere darunter und werden von ihr verdeckt.
+    el.style.zIndex = String(Math.round(1000 + p.z));
+
+    // Rückseite: weich abdunkeln, sobald das Widget hinter die Erde wandert,
+    // und dort nicht mehr anwählbar machen.
+    const R = (this._radiusMin + this._radiusMax) / 2;
+    const behind = smoothstep(0.05, -0.45, p.z / R);
+    el.style.setProperty('--behind', behind.toFixed(3));
+    el.classList.toggle('is-behind', p.z < -R * 0.1);
+  }
+
+  /* ============================================================
+     THREE.JS ERDE — transparent, nur Konturen
+     ============================================================ */
+  _buildEarth(container) {
+    if (!window.THREE) {
+      console.warn('OrbitMenu: Three.js nicht geladen');
+      return;
+    }
+    const THREE = window.THREE;
+
+    const width = container.clientWidth || 460;
+    const height = container.clientHeight || 460;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    this._earthCamera = camera;
+    this._earthCameraBaseZ = 15;
+
+    camera.position.set(0, 0, 15);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      premultipliedAlpha: false,
+      powerPreference: 'high-performance',
+      stencil: false
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height, false);
+    renderer.setClearColor(0x000000, 0);
+    renderer.setClearAlpha(0);
+    // setSize(..., false) setzt keine CSS-Größe – ohne diese Styles wäre das
+    // Canvas bei devicePixelRatio 2 doppelt so groß wie der Container.
+    const canvas = renderer.domElement;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.margin = '0';
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = '0';
+    container.appendChild(canvas);
+
+    scene.add(new THREE.AmbientLight(0x021a14, 2.2));
+
+    const rim1 = new THREE.DirectionalLight(0x004d40, 2.8);
+    rim1.position.set(30, 25, -30);
+    scene.add(rim1);
+
+    const rim2 = new THREE.DirectionalLight(0x003328, 2.2);
+    rim2.position.set(-30, -20, -30);
+    scene.add(rim2);
+
+    const fill = new THREE.DirectionalLight(0x00221c, 1.5);
+    fill.position.set(-20, 30, -20);
+    scene.add(fill);
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    // ============================================================
+    // UNSICHTBARE KUGEL
+    // Nur da, damit die Konturen eine "Projektionsfläche" haben.
+    // opacity: 0 → komplett durchsichtig
+    // ============================================================
+    const earthGeo = new THREE.SphereGeometry(5, 32, 32);
+    const earthMat = new THREE.MeshPhysicalMaterial({
+      color: 0x000000,
+      roughness: 0.2,
+      metalness: 0.9,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.3,
+      reflectivity: 0.5,
+      transparent: true,
+      opacity: 0.0
+    });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthMesh.renderOrder = -1;
+    earthGroup.add(earthMesh);
+
+    // ============================================================
+    // LAT/LON → 3D-VEKTOR
+    // ============================================================
+    const latLonToVec3 = (lat, lon, radius) => {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+      const x = -(radius * Math.sin(phi) * Math.cos(theta));
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+      const y = radius * Math.cos(phi);
+      return new THREE.Vector3(x, y, z);
+    };
+
+    // ============================================================
+    // GEOJSON → LINE-SEGMENTS
+    // Wandelt Landmassen-Polygone in Linien um.
+    // ============================================================
+    const geojsonToLineSegments = (geojson, radius) => {
+      const positions = [];
+
+      const addCoords = (coords) => {
+        if (!coords || coords.length < 2) return;
+        for (let i = 0; i < coords.length - 1; i++) {
+          const a = coords[i];
+          const b = coords[i + 1];
+          if (!a || !b || a.length < 2 || b.length < 2) continue;
+          const p1 = latLonToVec3(a[1], a[0], radius);
+          const p2 = latLonToVec3(b[1], b[0], radius);
+          positions.push(p1.x, p1.y, p1.z);
+          positions.push(p2.x, p2.y, p2.z);
+        }
+      };
+
+      const processGeom = (geom) => {
+        if (!geom) return;
+        if (geom.type === 'LineString') {
+          addCoords(geom.coordinates);
+        } else if (geom.type === 'MultiLineString' || geom.type === 'Polygon') {
+          if (Array.isArray(geom.coordinates)) {
+            geom.coordinates.forEach(addCoords);
+          }
+        } else if (geom.type === 'MultiPolygon') {
+          if (Array.isArray(geom.coordinates)) {
+            geom.coordinates.forEach(poly => {
+              if (Array.isArray(poly)) poly.forEach(addCoords);
+            });
+          }
+        } else if (geom.type === 'GeometryCollection') {
+          if (Array.isArray(geom.geometries)) geom.geometries.forEach(processGeom);
+        }
+      };
+
+      if (geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+        geojson.features.forEach(f => f && processGeom(f.geometry));
+      } else if (geojson.type === 'Feature') {
+        processGeom(geojson.geometry);
+      } else if (geojson.type) {
+        processGeom(geojson);
+      } else if (Array.isArray(geojson)) {
+        geojson.forEach(addCoords);
+      }
+
+      const geom = new THREE.BufferGeometry();
+      if (positions.length > 0) {
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      }
+      return geom;
+    };
+
+    // ============================================================
+    // FALLBACK-KONTINENTE
+    // Werden sofort gerendert, während die echten Daten laden.
+    // ============================================================
+    const CONTINENTS = [
+      [[-168,65],[-165,60],[-140,60],[-130,50],[-125,48],[-120,34],[-105,20],[-90,16],[-80,8],[-77,8],[-80,25],[-97,26],[-97,30],[-80,30],[-81,25],[-70,42],[-65,45],[-60,46],[-64,50],[-80,52],[-80,65],[-95,68],[-120,70],[-140,70],[-168,65]],
+      [[-77,8],[-80,0],[-80,-10],[-75,-15],[-70,-30],[-75,-45],[-70,-55],[-65,-55],[-60,-40],[-40,-22],[-35,-5],[-50,0],[-60,10],[-77,8]],
+      [[-10,36],[-9,43],[-2,43],[3,43],[5,48],[10,54],[25,58],[30,70],[40,70],[60,60],[50,50],[40,45],[30,46],[25,40],[15,38],[20,37],[22,40],[15,40],[12,44],[0,38],[-10,36]],
+      [[-17,15],[-17,21],[-5,36],[10,37],[25,31],[33,27],[43,12],[51,11],[42,0],[40,-10],[33,-28],[20,-35],[15,-30],[12,-15],[8,5],[-5,5],[-17,15]],
+      [[60,60],[70,73],[100,78],[140,70],[170,65],[160,55],[140,50],[130,43],[120,30],[108,12],[100,10],[100,20],[88,22],[78,8],[72,20],[60,25],[50,30],[40,45],[50,50],[60,60]],
+      [[114,-22],[114,-34],[138,-35],[150,-37],[153,-28],[142,-11],[130,-12],[128,-15],[114,-22]],
+      [[-180,-75],[-120,-75],[-60,-65],[0,-70],[60,-68],[120,-72],[180,-75]],
+      [[-55,60],[-40,65],[-20,70],[-20,80],[-50,82],[-70,75],[-55,60]],
+      [[-5,50],[-3,58],[0,52],[-5,50]],
+      [[130,32],[136,35],[141,41],[140,36],[130,32]]
+    ];
+
+    // ============================================================
+    // LANDFLÄCHEN
+    // Land wird in eine equirektangulare Canvas-Textur gezeichnet
+    // (u = (lon+180)/360, v = (90-lat)/180 – passt zu SphereGeometry
+    // und latLonToVec3). Meere bleiben alpha = 0 → transparent.
+    // ============================================================
+    const LAND_W = 2048;
+    const LAND_H = 1024;
+    const landCanvas = document.createElement('canvas');
+    landCanvas.width = LAND_W;
+    landCanvas.height = LAND_H;
+    const landCtx = landCanvas.getContext('2d');
+
+    const traceRing = (ring, offsetLon) => {
+      if (!ring || ring.length < 3) return;
+      // Sprünge über den Antimeridian auflösen, sonst entstehen Streifen quer über die Karte
+      const pts = [];
+      let shift = 0;
+      for (let i = 0; i < ring.length; i++) {
+        const lon = ring[i][0];
+        const lat = ring[i][1];
+        if (i > 0) {
+          const d = lon - ring[i - 1][0];
+          if (d > 180) shift -= 360;
+          else if (d < -180) shift += 360;
+        }
+        pts.push([lon + shift, lat]);
+      }
+      // Ring umschließt einen Pol (Antarktis) → über den Pol schließen
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      if (Math.abs(last[0] - first[0]) > 180) {
+        const meanLat = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const poleLat = meanLat < 0 ? -90 : 90;
+        pts.push([last[0], poleLat], [first[0], poleLat]);
+      }
+      pts.forEach(([lon, lat], i) => {
+        const x = ((lon + offsetLon + 180) / 360) * LAND_W;
+        const y = ((90 - lat) / 180) * LAND_H;
+        if (i === 0) landCtx.moveTo(x, y);
+        else landCtx.lineTo(x, y);
+      });
+      landCtx.closePath();
+    };
+
+    const landTex = new THREE.CanvasTexture(landCanvas);
+    landTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    // polygons: Array von Polygonen, jedes ein Array von Ringen (Außenring + Löcher)
+    const drawLand = (polygons) => {
+      const ctx = landCtx;
+      ctx.clearRect(0, 0, LAND_W, LAND_H);
+      ctx.beginPath();
+      // Kopien bei ±360° fangen Polygone ab, die über den Kartenrand ragen
+      polygons.forEach(rings => rings.forEach(ring => {
+        traceRing(ring, -360);
+        traceRing(ring, 0);
+        traceRing(ring, 360);
+      }));
+
+      // Grundfüllung: von Nord nach Süd leicht verlaufend
+      const grad = ctx.createLinearGradient(0, 0, 0, LAND_H);
+      grad.addColorStop(0.0, 'rgba(0, 170, 130, 0.62)');
+      grad.addColorStop(0.5, 'rgba(0, 150, 115, 0.55)');
+      grad.addColorStop(1.0, 'rgba(0, 120, 100, 0.50)');
+      ctx.fillStyle = grad;
+      ctx.fill('nonzero');
+
+      ctx.save();
+      ctx.clip('nonzero');
+
+      // Holo-Schraffur auf dem Land
+      ctx.strokeStyle = 'rgba(0, 255, 190, 0.07)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let y = 0; y < LAND_H; y += 6) {
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(LAND_W, y + 0.5);
+      }
+      ctx.stroke();
+
+      // Weiche, helle Innenkante entlang der Küsten
+      ctx.beginPath();
+      polygons.forEach(rings => rings.forEach(ring => traceRing(ring, 0)));
+      ctx.strokeStyle = 'rgba(0, 235, 175, 0.45)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.restore();
+      landTex.needsUpdate = true;
+    };
+
+    const landMat = new THREE.ShaderMaterial({
+      uniforms: {
+        landMap: { value: landTex },
+        uBoost: { value: 1 }   // > 1 = Land "lädt sich auf" (Expand-Animation)
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D landMap;
+        uniform float uBoost;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vec4 c = texture2D(landMap, vUv);
+          // Zur Bildmitte hin heller, zum Rand hin dunkler/transparenter → Plastizität
+          float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
+          float light = 0.55 + 0.45 * facing;
+          float alpha = c.a * (0.5 + 0.5 * facing) * (0.85 + 0.15 * uBoost);
+          gl_FragColor = vec4(c.rgb * light * uBoost, min(alpha, 1.0));
+        }
+      `,
+      transparent: true,
+      depthWrite: false
+    });
+    const landMesh = new THREE.Mesh(new THREE.SphereGeometry(5.02, 64, 64), landMat);
+    landMesh.renderOrder = 0;
+    earthGroup.add(landMesh);
+
+    drawLand(CONTINENTS.map(ring => [ring]));
+
+    // ============================================================
+    // KONTUR-MATERIALIEN
+    // Zwei Layer:
+    //   baseMat → dunkleres Grün, gibt Tiefe
+    //   glowMat → helleres Grün, additiv, dezenter Schimmer
+    // ============================================================
+    const baseMat = new THREE.LineBasicMaterial({
+      color: 0x00a078,
+      transparent: true,
+      opacity: 0.7
+    });
+    const glowMat = new THREE.LineBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending
+    });
+
+    const baseGeo = geojsonToLineSegments(CONTINENTS, 5.04);
+    const glowGeo = geojsonToLineSegments(CONTINENTS, 5.06);
+
+    const baseLines = new THREE.LineSegments(baseGeo, baseMat);
+    const glowLines = new THREE.LineSegments(glowGeo, glowMat);
+    // Linien nach der Landfläche zeichnen
+    baseLines.renderOrder = 1;
+    glowLines.renderOrder = 1;
+    earthGroup.add(baseLines);
+    earthGroup.add(glowLines);
+
+    // ============================================================
+    // ECHTE DATEN NACHLADEN
+    // Von world-atlas (Natural Earth, 110m Auflösung)
+    //   mode 'mesh'    → Grenzlinien
+    //   mode 'feature' → Flächen
+    // ============================================================
+    const loadTopo = async (file, mode) => {
+      const urls = [
+        `https://cdn.jsdelivr.net/npm/world-atlas@2/${file}`,
+        `https://unpkg.com/world-atlas@2/${file}`
+      ];
+      for (const url of urls) {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) continue;
+          const topology = await resp.json();
+          let geojson = null;
+          if (typeof window.topojson !== 'undefined' && topology.objects) {
+            const key = Object.keys(topology.objects)[0];
+            const fn = mode === 'mesh' ? window.topojson.mesh : window.topojson.feature;
+            if (fn) geojson = fn(topology, topology.objects[key]);
+          } else if (topology.type === 'FeatureCollection' || topology.type === 'Feature') {
+            geojson = topology;
+          }
+          if (geojson) return geojson;
+        } catch (_) {}
+      }
+      return null;
+    };
+
+    const geojsonToPolygons = (gj) => {
+      const out = [];
+      const add = (g) => {
+        if (!g) return;
+        if (g.type === 'Polygon') out.push(g.coordinates);
+        else if (g.type === 'MultiPolygon') g.coordinates.forEach(p => out.push(p));
+        else if (g.type === 'GeometryCollection') g.geometries.forEach(add);
+      };
+      if (gj.type === 'FeatureCollection') gj.features.forEach(f => f && add(f.geometry));
+      else if (gj.type === 'Feature') add(gj.geometry);
+      else add(gj);
+      return out;
+    };
+
+    loadTopo('land-110m.json', 'feature').then(geojson => {
+      if (!geojson) return;
+      const polygons = geojsonToPolygons(geojson);
+      if (polygons.length) drawLand(polygons);
+    });
+
+    loadTopo('countries-110m.json', 'mesh').then(geojson => {
+      if (!geojson) return;
+      const nb = geojsonToLineSegments(geojson, 5.04);
+      const ng = geojsonToLineSegments(geojson, 5.06);
+      if (nb.attributes.position && nb.attributes.position.count > 0) {
+        baseLines.geometry.dispose();
+        glowLines.geometry.dispose();
+        baseLines.geometry = nb;
+        glowLines.geometry = ng;
+      }
+    });
+
+    // ============================================================
+    // STÄDTE — pulsierende grüne Punkte
+    // ============================================================
+    const CITIES = [
+      { lat: 35.6762, lon: 139.6503 }, { lat: 51.5074, lon: -0.1278 },
+      { lat: 40.7128, lon: -74.0060 }, { lat: 31.2304, lon: 121.4737 },
+      { lat: -33.8688, lon: 151.2093 }, { lat: 30.0444, lon: 31.2357 },
+      { lat: -22.9068, lon: -43.1729 }, { lat: 19.0760, lon: 72.8777 },
+      { lat: 48.8566, lon: 2.3522 }, { lat: 1.3521, lon: 103.8198 },
+      { lat: 34.0522, lon: -118.2437 }, { lat: -23.5505, lon: -46.6333 },
+      { lat: -33.9249, lon: 18.4241 }, { lat: 25.2048, lon: 55.2708 },
+      { lat: 55.7558, lon: 37.6173 }
+    ];
+
+    const cityPositions = [];
+    CITIES.forEach(c => {
+      const v = latLonToVec3(c.lat, c.lon, 5.08);
+      cityPositions.push(v.x, v.y, v.z);
+    });
+
+    const cityGeo = new THREE.BufferGeometry();
+    cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(cityPositions, 3));
+    this._cityMat = new THREE.PointsMaterial({
+      color: 0x00ffcc,
+      size: 0.35,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 1.0,
+      blending: THREE.AdditiveBlending
+    });
+    const cityPoints = new THREE.Points(cityGeo, this._cityMat);
+    cityPoints.renderOrder = 2;
+    earthGroup.add(cityPoints);
+
+    // ============================================================
+    // ATMOSPHÄRE
+    // Dünner Rand-Glow. BackSide, AdditiveBlending → nur der Rand
+    // leuchtet, die Mitte bleibt transparent.
+    // ============================================================
+    const atmoGeo = new THREE.SphereGeometry(5.12, 32, 32);
+    const atmoMat = new THREE.ShaderMaterial({
+      uniforms: { uIntensity: { value: 1 } },
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uIntensity;
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.6);
+          gl_FragColor = vec4(0.0, 0.55, 0.42, 1.0) * intensity * 2.6 * uIntensity;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false
+    });
+    const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+    atmoMesh.renderOrder = 999;
+    scene.add(atmoMesh);
+
+    // ============================================================
+    // RESIZE
+    // ============================================================
+    const resize = () => {
+      const w = container.clientWidth || 460;
+      const h = container.clientHeight || 460;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    };
+    this._earthResize = resize;
+    window.addEventListener('resize', resize);
+
+    // ============================================================
+    // EXPAND-EFFEKTE
+    // Liefert pro Frame die Effektwerte für Aufladen & Entladung.
+    // this._earthFx = { start, release } wird von expand() gesetzt.
+    // ============================================================
+    const FX_IDLE = { tremble: 0, scale: 1, glow: 0, atmo: 1, boost: 1, zoom: 0, spin: 0 };
+    const CHARGE_SCALE = 0.955;
+
+    const computeFx = (now) => {
+      const fx = this._earthFx;
+      if (!fx) return FX_IDLE;
+
+      if (now < fx.release) {
+        // Aufladen: alles steigt beschleunigt an
+        const c = clamp01((now - fx.start) / (fx.release - fx.start));
+        const ci = easeInCubic(c);
+        const cs = easeInOutSine(c);
+        return {
+          tremble: 0.012 + 0.08 * ci,
+          scale: 1 - (1 - CHARGE_SCALE) * cs,
+          glow: 0.55 * ci,
+          atmo: 1 + 1.4 * ci,
+          boost: 1 + 0.45 * ci,
+          zoom: 0.55 * cs,
+          spin: 0.9 * ci
+        };
+      }
+
+      // Entladung: kurzer Stoß, danach gedämpftes Ausschwingen
+      const r = now - fx.release;
+      if (r > 2200) {
+        this._earthFx = null;
+        return FX_IDLE;
+      }
+      const spring = 1 + 0.075 * Math.exp(-r / 230) * Math.cos(r * 0.016);
+      const attack = easeOutCubic(clamp01(r / 70));
+      return {
+        tremble: 0.2 * Math.exp(-r / 170),
+        scale: CHARGE_SCALE + (spring - CHARGE_SCALE) * attack,
+        glow: 0.7 * Math.exp(-r / 450),
+        atmo: 1 + 2.4 * Math.exp(-r / 320),
+        boost: 1 + 0.9 * Math.exp(-r / 380),
+        zoom: 0.55 * Math.exp(-r / 200),
+        spin: 0.9 * Math.exp(-r / 600)
+      };
+    };
+
+    // ============================================================
+    // RENDER-LOOP — 30 fps im Ruhezustand, 60 fps während der Animation
+    // ============================================================
+    const start = performance.now();
+    let lastNow = start;
+    let lastEarthFrame = 0;
+
+    const tick = (now) => {
+      this._earthRafId = requestAnimationFrame(tick);
+
+      // 2 ms Toleranz, sonst werden durch RAF-Jitter Frames verworfen
+      const interval = this._earthFx ? 1000 / 60 : 1000 / 30;
+      if (now - lastEarthFrame < interval - 2) return;
+      lastEarthFrame = now;
+
+      // Außerhalb von HOME ist die Erde unsichtbar – GPU nicht belasten
+      if (ViewManager.getState() !== 'HOME') {
+        lastNow = now;
+        return;
+      }
+
+      const t = (now - start) / 1000;
+      const dt = Math.min(0.05, (now - lastNow) / 1000);
+      lastNow = now;
+
+      const fx = computeFx(now);
+
+      const baseZ = this._earthCameraBaseZ - fx.zoom;
+      if (fx.tremble > 0.0005) {
+        // Zittern über die Kamera – bewegt Erde, Linien und Atmosphäre gemeinsam
+        const jx = (Math.random() - 0.5) * 2 * fx.tremble;
+        const jy = (Math.random() - 0.5) * 2 * fx.tremble;
+        camera.position.set(jx, jy, baseZ);
+        camera.lookAt(jx * 0.6, jy * 0.6, 0);
+      } else if (camera.position.x !== 0 || camera.position.y !== 0 || camera.position.z !== baseZ) {
+        // x/y mitprüfen, damit nach dem Zittern kein Versatz stehen bleibt
+        camera.position.set(0, 0, baseZ);
+        camera.lookAt(0, 0, 0);
+      }
+
+      earthGroup.scale.setScalar(fx.scale);
+      atmoMesh.scale.setScalar(fx.scale);
+      glowMat.opacity = 0.3 + fx.glow;
+      baseMat.opacity = Math.min(1, 0.7 + fx.glow * 0.4);
+      landMat.uniforms.uBoost.value = fx.boost;
+      atmoMat.uniforms.uIntensity.value = fx.atmo;
+
+      earthGroup.rotation.y += dt * (0.12 + fx.spin);
+
+      if (this._cityMat) {
+        this._cityMat.size = (0.32 + Math.sin(t * 3.5) * 0.08) * (1 + fx.glow * 0.6);
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    this._earthFx = null;
+    this._earthRafId = requestAnimationFrame(tick);
+
+    this._three = { scene, camera, renderer };
+    this._earthGroup = earthGroup;
+  }
+
+  /* ============================================================
+     ÖFFNEN: Aufladen → Knall → Widgets fliegen raus
+     Die Erde (Zittern, Aufleuchten, Rückstoß) wird über
+     this._earthFx im Erd-Loop gesteuert, der Flug der Widgets
+     über this._intro im Widget-Loop – beides framegenau.
+     ============================================================ */
+  expand() {
+    if (this._expanded || this._transitioning) return;
+    this._transitioning = true;
+
+    const reduced = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const T = reduced ? INTRO_REDUCED : INTRO;
+    const now = performance.now();
+
+    this._earthFx = reduced ? null : { start: now, release: now + T.charge };
+    this._core.classList.add('is-charging');
+    audio.charge(T.charge / 1000);
+
+    this._items.forEach(({ el }) => {
+      el.style.opacity = '';
+      el.style.filter = '';
+      el.style.zIndex = '';
+    });
+
+    if (!reduced) this._spawnChargeFx(T.charge);
+
+    this._later(() => this._release(T, reduced), T.charge);
+  }
+
+  _later(fn, ms) {
+    const id = setTimeout(() => {
+      this._fxTimers = this._fxTimers.filter(x => x !== id);
+      fn();
+    }, ms);
+    this._fxTimers.push(id);
+  }
+
+  /** Bildschirm-Radius der Erdkugel (die Kugel füllt ~82 % der Core-Höhe). */
+  _earthScreenRadius() {
+    const w = this._core ? this._core.offsetWidth : 460;
+    return w * 0.41;
+  }
+
+  /** Kurzlebiges Effekt-Element, das sich nach seiner Animation selbst entfernt. */
+  _fx(parent, className, vars, maxLife = 2500) {
+    const el = document.createElement('div');
+    el.className = 'orbit-fx ' + className;
+    for (const k in vars) el.style.setProperty(k, vars[k]);
+    const done = () => el.remove();
+    el.addEventListener('animationend', done, { once: true });
+    setTimeout(done, maxLife);
+    parent.appendChild(el);
+    return el;
+  }
+
+  /** Phase 1: Energie strömt in die Atmosphäre, Ringe ziehen sich zusammen. */
+  _spawnChargeFx(charge) {
+    const R = this._earthScreenRadius();
+    const orbit = this._orbit;
+    const mobile = window.innerWidth < 640;
+
+    // sqrt(random) → Partikel werden zum Ende hin dichter, das Aufladen schwillt an
+    const count = mobile ? 18 : 30;
+    for (let i = 0; i < count; i++) {
+      const delay = charge * 0.82 * Math.sqrt(Math.random());
+      const dur = Math.max(260, Math.min(rand(520, 820), charge - delay));
+      this._fx(orbit, 'orbit-charge-particle', {
+        '--angle': rand(0, 360).toFixed(1) + 'deg',
+        '--from': (R * rand(1.35, 2.2)).toFixed(1) + 'px',
+        '--to': (R * 1.02).toFixed(1) + 'px',
+        '--len': rand(8, 20).toFixed(1) + 'px',
+        '--dur': dur.toFixed(0) + 'ms',
+        '--delay': delay.toFixed(0) + 'ms'
+      }, charge + 400);
+    }
+
+    // Drei Ringe, jeder etwas kräftiger – der letzte endet genau beim Knall
+    const ringScale = 1.9;
+    [0.1, 0.38, 0.62].forEach((d, i) => {
+      this._fx(orbit, 'orbit-charge-ring', {
+        '--ring': (R * 2 * ringScale).toFixed(0) + 'px',
+        '--end-scale': (1.03 / ringScale).toFixed(3),
+        '--dur': (charge * 0.38).toFixed(0) + 'ms',
+        '--delay': (charge * d).toFixed(0) + 'ms',
+        '--peak': (0.35 + i * 0.2).toFixed(2)
+      }, charge + 400);
+    });
+  }
+
+  /** Phase 2 + 3: Knall, dann fliegen die Widgets als Welle raus. */
+  _release(T, reduced) {
+    const orbit = this._orbit;
+    const core = this._core;
+    const R = this._earthScreenRadius();
+
+    core.classList.remove('is-charging');
+    core.classList.add('is-open');
+    audio.boom();
+
+    if (!reduced) {
+      // Vor der Erde (root-Ebene, über dem Core)
+      this._fx(this.root, 'orbit-flash', {
+        '--size': (R * 2.3).toFixed(0) + 'px'
+      });
+      this._fx(this.root, 'orbit-shockwave', {
+        '--size': (R * 2.05).toFixed(0) + 'px',
+        '--end-scale': '2.8',
+        '--dur': '950ms',
+        '--delay': '0ms',
+        '--peak': '0.9'
+      });
+      this._fx(this.root, 'orbit-shockwave', {
+        '--size': (R * 2.05).toFixed(0) + 'px',
+        '--end-scale': '3.6',
+        '--dur': '1250ms',
+        '--delay': '110ms',
+        '--peak': '0.4'
+      });
+
+      const sparks = window.innerWidth < 640 ? 10 : 16;
+      for (let i = 0; i < sparks; i++) {
+        this._fx(this.root, 'orbit-spark-out', {
+          '--angle': rand(0, 360).toFixed(1) + 'deg',
+          '--from': (R * rand(0.95, 1.05)).toFixed(1) + 'px',
+          '--to': (R * rand(1.5, 2.4)).toFixed(1) + 'px',
+          '--len': rand(10, 26).toFixed(1) + 'px',
+          '--dur': rand(600, 900).toFixed(0) + 'ms',
+          '--delay': rand(0, 80).toFixed(0) + 'ms'
+        });
+      }
+    }
+
+    this._expanded = true;
+    orbit.classList.add('is-expanded');
+
+    // Startreihenfolge nach Bildschirmwinkel → die Widgets fächern sich als Welle auf
+    const order = this._items
+      .map(item => {
+        const p = this._projectItem(item);
+        return { item, p, a: Math.atan2(p.y, p.x) };
+      })
+      .sort((u, v) => u.a - v.a);
+
+    order.forEach(({ item, p, a }, rank) => {
+      const delay = rank * T.stagger;
+      item.launchDelay = delay;
+      item.el.style.setProperty('--burst-delay', delay + 'ms');
+      item.el.classList.add('is-bursting');
+
+      if (!reduced) {
+        // Leuchtspur in Flugrichtung, läuft dem Widget knapp voraus
+        this._fx(orbit, 'orbit-ray', {
+          '--angle': (a * 180 / Math.PI).toFixed(1) + 'deg',
+          '--len': Math.hypot(p.x, p.y).toFixed(0) + 'px',
+          '--dur': (T.fly * 0.75).toFixed(0) + 'ms',
+          '--delay': delay + 'ms'
+        });
+      }
+    });
+
+    this._intro = { release: performance.now(), fly: T.fly };
+    this._widgetsDirty = true;
+
+    const total = T.fly + T.stagger * (this._items.length - 1);
+    clearTimeout(this._transitionTimer);
+    this._transitionTimer = setTimeout(() => this._finishIntro(), total + 30);
+  }
+
+  _finishIntro() {
+    this._intro = null;
+    this._items.forEach(item => {
+      item.launchDelay = 0;
+      item.el.classList.remove('is-bursting');
+    });
+    this._transitioning = false;
+    this._widgetsDirty = true;
+  }
+
+  _bindMouse() {
+    this._boundMove = (e) => {
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      this._targetParallaxY = nx * 14;
+      this._targetParallaxX = -ny * 10;
+      this._widgetsDirty = true;
+    };
+
+    this._boundLeave = () => {
+      this._targetParallaxX = 0;
+      this._targetParallaxY = 0;
+    };
+
+    window.addEventListener('mousemove', this._boundMove);
+    document.addEventListener('mouseleave', this._boundLeave);
+  }
+
+  _bindDrag() {
+    const orbit = this._orbit;
+
+    this._onPointerDown = (e) => {
+      if (ViewManager.getState() !== 'HOME') return;
+      if (!this._expanded) return;
+      if (e.button !== undefined && e.button !== 0) return;
+
+      const target = e.target;
+      if (target && target.closest && target.closest('.orbit-item')) return;
+      if (target && target.closest && target.closest('.orbit-core')) return;
+
+      this._isDragging = true;
+      this._dragLastX = e.clientX;
+      this._dragLastY = e.clientY;
+      this._dragLastTime = performance.now();
+      this._spin = { x: 0, y: 0 };
+
+      orbit.classList.add('is-dragging');
+
+      // will-change nur beim Drag setzen
+      if (this._cluster) this._cluster.style.willChange = 'transform';
+
+      if (e.pointerId !== undefined && orbit.setPointerCapture) {
+        try { orbit.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    };
+
+    this._onPointerMove = (e) => {
+      if (!this._isDragging) return;
+
+      const now = performance.now();
+      const dt = Math.max(1, now - this._dragLastTime);
+      const dx = e.clientX - this._dragLastX;
+      const dy = e.clientY - this._dragLastY;
+
+      // Links/rechts → um die Y-Achse, hoch/runter → um die X-Achse.
+      // (Bildschirm-y zeigt nach unten, daher das Minus.)
+      const wx = -dy * this._dragSensitivity;
+      const wy = dx * this._dragSensitivity;
+      this._rotateScreen(wx, wy);
+      this._spin = { x: wx / dt, y: wy / dt };
+
+      this._dragLastX = e.clientX;
+      this._dragLastY = e.clientY;
+      this._dragLastTime = now;
+      this._widgetsDirty = true;
+    };
+
+    this._onPointerUp = (e) => {
+      if (!this._isDragging) return;
+      this._isDragging = false;
+
+      // Maus vor dem Loslassen angehalten → kein Nachschwingen
+      if (performance.now() - this._dragLastTime > 80) this._spin = { x: 0, y: 0 };
+      orbit.classList.remove('is-dragging');
+
+      // will-change wieder abgeben
+      if (this._cluster) this._cluster.style.willChange = 'auto';
+
+      if (e.pointerId !== undefined && orbit.releasePointerCapture) {
+        try { orbit.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+    };
+
+    orbit.addEventListener('pointerdown', this._onPointerDown);
+    window.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
+    window.addEventListener('pointercancel', this._onPointerUp);
+
+    this._boundOnPointerDown = this._onPointerDown;
+    this._boundOnPointerMove = this._onPointerMove;
+    this._boundOnPointerUp = this._onPointerUp;
+  }
+
+  _bindResize() {
+    this._boundResize = () => {
+      const vmin = Math.min(window.innerWidth, window.innerHeight);
+      const scale = Math.max(0.6, Math.min(1.0, vmin / 900));
+      this._radiusMin = 280 * scale;
+      this._radiusMax = 440 * scale;
+      this._widgetsDirty = true;
+    };
+    window.addEventListener('resize', this._boundResize);
+    this._boundResize();
+  }
+
+  _bindViewChanges() {
+    this._unsubscribeView = ViewManager.onChange((next) => {
+      if (next === 'HOME') {
+        setTimeout(() => {
+          this._resetWarpState();
+          if (this._expanded && this._orbit) {
+            this._orbit.classList.add('is-expanded');
+            this._transitioning = false;
+          }
+          this._widgetsDirty = true;
+        }, 50);
+      }
+    });
+  }
+
+  _resetWarpState() {
+    this._items.forEach(({ el }) => {
+      el.classList.remove('is-warping', 'is-shrinking', 'is-collapsing', 'is-bursting');
+      el.style.position = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.width = '';
+      el.style.height = '';
+      el.style.marginLeft = '';
+      el.style.marginTop = '';
+      el.style.pointerEvents = '';
+      el.style.opacity = '';
+      el.style.visibility = '';
+      el.style.transition = '';
+      el.style.willChange = '';
+    });
+    this._items.forEach(i => { i.warping = false; });
+
+    document.querySelectorAll(
+      '.orbit-spark, .orbit-trail-dot, .orbit-warp-burst, .orbit-fx'
+    ).forEach(n => n.remove());
+  }
+
+  _startRaf() {
+    const start = performance.now();
+    let lastNow = start;
+
+    const tick = (now) => {
+      this._rafId = requestAnimationFrame(tick);
+
+      // Frame-Throttle: max 30 fps (2 ms Toleranz gegen RAF-Timing-Jitter)
+      if (now - this._lastWidgetFrame < this._widgetFrameInterval - 2) return;
+      this._lastWidgetFrame = now;
+
+      const t = (now - start) / 1000;
+      const dt = Math.min(50, now - lastNow);
+      lastNow = now;
+
+      const isHome = ViewManager.getState() === 'HOME';
+
+      if (isHome && this._expanded && !this._transitioning) {
+        if (!this._isDragging) {
+          if (Math.hypot(this._spin.x, this._spin.y) > 0.00001) {
+            // Schwung nach dem Loslassen, klingt exponentiell aus
+            this._rotateScreen(this._spin.x * dt, this._spin.y * dt);
+            const decay = Math.pow(this._inertiaDecay, dt / 16);
+            this._spin.x *= decay;
+            this._spin.y *= decay;
+            this._widgetsDirty = true;
+          } else {
+            this._spin.x = 0;
+            this._spin.y = 0;
+            if (!this._paused) {
+              // Ruhige Eigenrotation um die senkrechte Bildschirmachse
+              this._rotateScreen(0, this._autoRotationSpeed * (dt / 1000));
+            }
+          }
+        }
+      }
+
+      // Parallax nur interpolieren, wenn wir uns bewegen
+      const pxDelta = Math.abs(this._targetParallaxX - this._currentParallaxX);
+      const pyDelta = Math.abs(this._targetParallaxY - this._currentParallaxY);
+      if (pxDelta > 0.01 || pyDelta > 0.01) {
+        this._currentParallaxX += (this._targetParallaxX - this._currentParallaxX) * 0.06;
+        this._currentParallaxY += (this._targetParallaxY - this._currentParallaxY) * 0.06;
+        this._widgetsDirty = true;
+      }
+
+      // Wenn nichts dirty und nicht expanded: skip
+      const needsUpdate = this._widgetsDirty
+                       || this._intro
+                       || (!this._paused && this._expanded);
+
+      if (!needsUpdate) return;
+
+      this._widgetsDirty = false;
+
+      this._items.forEach((item) => {
+        if (item.warping) {
+          const el = item.el;
+          const isMidWarp = el.classList.contains('is-warping')
+                         || el.classList.contains('is-shrinking')
+                         || el.classList.contains('is-collapsing');
+          if (!isMidWarp) {
+            item.warping = false;
+            el.style.position = '';
+            el.style.left = '';
+            el.style.top = '';
+            el.style.width = '';
+            el.style.height = '';
+            el.style.marginLeft = '';
+            el.style.marginTop = '';
+            el.style.transform = '';
+            el.style.zIndex = '';
+            el.style.pointerEvents = '';
+            el.style.opacity = '';
+            el.style.visibility = '';
+          } else {
+            return;
+          }
+        }
+
+        if (!this._expanded) return;
+
+        const { el, phase, floatAmp, floatSpeed } = item;
+
+        const floatY = Math.sin(t * floatSpeed + phase) * floatAmp;
+        const floatZ = Math.cos(t * floatSpeed * 0.7 + phase) * floatAmp * 0.5;
+
+        // Rausfliegen: Zielposition wird live berechnet (inkl. Schweben), daher
+        // gibt es am Ende des Flugs keinen Sprung in die normale Umlaufbahn.
+        if (this._intro) {
+          const k = clamp01((now - this._intro.release - (item.launchDelay || 0)) / this._intro.fly);
+          if (k < 1) {
+            const spiral = (1 - easeOutCubic(k)) * 0.55;
+            const p = this._projectItem(item, floatY, floatZ, -spiral);
+            const reach = easeOutBack(k, 1.2);   // leichtes Überschwingen nach außen
+            p.x *= reach;
+            p.y *= reach;
+            p.z *= reach;
+            this._applyItemTransform(el, p, 0.2 + 0.8 * easeOutCubic(k), clamp01(k * 2.5));
+            return;
+          }
+        }
+
+        this._applyItemTransform(el, this._projectItem(item, floatY, floatZ));
+      });
+    };
+
+    this._rafId = requestAnimationFrame(tick);
+  }
+
+  _handleClick(project, btn) {
+    audio.click();
+
+    const isReal = ['carousel', 'sphere', 'watchtime', 'nfl'].includes(project.target);
+
+    if (!isReal) {
+      btn.animate(
+        [
+          { transform: btn.style.transform + ' scale(1)' },
+          { transform: btn.style.transform + ' scale(0.92)' },
+          { transform: btn.style.transform + ' scale(1)' }
+        ],
+        { duration: 260, easing: 'ease-out' }
+      );
+
+      if (project.target === 'placeholder') {
+        this._showToast(`${project.name} · in Vorbereitung`);
+      } else if (project.target === 'empty') {
+        this._showToast('Platz frei');
+      } else {
+        this._showToast('Unbekanntes Ziel');
+      }
+      return;
+    }
+
+    const itemEntry = this._items.find(i => i.el === btn);
+    if (itemEntry) itemEntry.warping = true;
+
+    const rect = btn.getBoundingClientRect();
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    const w = rect.width;
+    const h = rect.height;
+    const centerX = startLeft + w / 2;
+    const centerY = startTop + h / 2;
+
+    const vpCx = window.innerWidth / 2;
+    const vpCy = window.innerHeight / 2;
+
+    btn.style.position = 'fixed';
+    btn.style.left = startLeft + 'px';
+    btn.style.top = startTop + 'px';
+    btn.style.width = w + 'px';
+    btn.style.height = h + 'px';
+    btn.style.marginLeft = '0';
+    btn.style.marginTop = '0';
+    btn.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    btn.style.zIndex = '9999';
+    btn.style.pointerEvents = 'none';
+
+    void btn.offsetWidth;
+
+    btn.classList.add('is-warping');
+    btn.classList.add('is-shrinking');
+
+    setTimeout(() => {
+      btn.style.opacity = '0';
+      btn.style.visibility = 'hidden';
+
+      const spark = document.createElement('div');
+      spark.className = 'orbit-spark';
+      spark.style.left = centerX + 'px';
+      spark.style.top = centerY + 'px';
+      document.body.appendChild(spark);
+
+      const trailDots = [];
+      const spawnTrailDot = () => {
+        const sLeft = parseFloat(spark.style.left) || centerX;
+        const sTop  = parseFloat(spark.style.top) || centerY;
+
+        const dot = document.createElement('div');
+        dot.className = 'orbit-trail-dot';
+        dot.style.left = sLeft + 'px';
+        dot.style.top  = sTop + 'px';
+        document.body.appendChild(dot);
+        trailDots.push(dot);
+
+        setTimeout(() => {
+          dot.remove();
+          const idx = trailDots.indexOf(dot);
+          if (idx >= 0) trailDots.splice(idx, 1);
+        }, 700);
+      };
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          spark.classList.add('is-flying');
+          spark.style.left = vpCx + 'px';
+          spark.style.top  = vpCy + 'px';
+          spark.style.transform = 'scale(0.55)';
+        });
+      });
+
+      const trailInterval = setInterval(spawnTrailDot, 22);
+
+      setTimeout(() => {
+        clearInterval(trailInterval);
+        spawnTrailDot();
+        spark.classList.add('is-arrived');
+
+        const core = this.root.querySelector('.orbit-core');
+        if (core) {
+          core.classList.add('is-pulsing');
+          setTimeout(() => core.classList.remove('is-pulsing'), 900);
+        }
+
+        const burst = document.createElement('div');
+        burst.className = 'orbit-warp-burst';
+        document.body.appendChild(burst);
+        setTimeout(() => burst.remove(), 1200);
+
+        this.onOpenProject(project);
+
+        setTimeout(() => {
+          spark.remove();
+          trailDots.forEach(d => d.remove());
+          trailDots.length = 0;
+
+          btn.classList.remove('is-warping', 'is-shrinking');
+          btn.style.position = '';
+          btn.style.left = '';
+          btn.style.top = '';
+          btn.style.width = '';
+          btn.style.height = '';
+          btn.style.marginLeft = '';
+          btn.style.marginTop = '';
+          btn.style.transform = '';
+          btn.style.zIndex = '';
+          btn.style.pointerEvents = '';
+          btn.style.opacity = '';
+          btn.style.visibility = '';
+
+          if (itemEntry) itemEntry.warping = false;
+          this._widgetsDirty = true;
+        }, 400);
+      }, 420);
+    }, 320);
+  }
+
+  _showToast(text) {
+    if (!this._toast) return;
+    this._toast.textContent = text;
+    this._toast.classList.add('visible');
+
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      this._toast.classList.remove('visible');
+    }, 2200);
+  }
+
+  show() { this.root.style.opacity = '1'; this.root.style.pointerEvents = 'auto'; }
+  hide() { this.root.style.opacity = '0'; this.root.style.pointerEvents = 'none'; }
+
+  destroy() {
+    clearTimeout(this._toastTimer);
+    clearTimeout(this._transitionTimer);
+    this._fxTimers.forEach(clearTimeout);
+    this._fxTimers = [];
+    if (this._rafId) cancelAnimationFrame(this._rafId);
+    if (this._earthRafId) cancelAnimationFrame(this._earthRafId);
+    if (this._earthResize) window.removeEventListener('resize', this._earthResize);
+    if (this._three && this._three.renderer) {
+      try { this._three.renderer.dispose(); } catch (_) {}
+    }
+    if (this._boundMove) window.removeEventListener('mousemove', this._boundMove);
+    if (this._boundResize) window.removeEventListener('resize', this._boundResize);
+    if (this._boundLeave) document.removeEventListener('mouseleave', this._boundLeave);
+    if (this._boundOnPointerMove) window.removeEventListener('pointermove', this._boundOnPointerMove);
+    if (this._boundOnPointerUp) {
+      window.removeEventListener('pointerup', this._boundOnPointerUp);
+      window.removeEventListener('pointercancel', this._boundOnPointerUp);
+    }
+    if (this._boundOnPointerDown && this._orbit) {
+      this._orbit.removeEventListener('pointerdown', this._boundOnPointerDown);
+    }
+    if (typeof this._unsubscribeView === 'function') {
+      this._unsubscribeView();
+    }
+    this.root.innerHTML = '';
+    this._items = [];
+  }
+}

@@ -1,0 +1,749 @@
+/* =========================================================
+   ORBIT MENU — CLUSTER EDITION (OPTIMIZED)
+   8 Module · drehbar per Drag · Three.js-Erde als Kern
+   + Explosions-Effekt beim Öffnen
+   ========================================================= */
+
+#orbit-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.85s;
+}
+
+body.state-home #orbit-stage {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
+}
+
+body:not(.state-home) #orbit-stage {
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* =========================================================
+   BÜHNE
+   ========================================================= */
+
+.orbit {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1600px;
+  perspective-origin: 50% 50%;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.orbit.is-expanded {
+  cursor: grab;
+}
+
+.orbit.is-expanded.is-dragging {
+  cursor: grabbing;
+}
+
+/* =========================================================
+   CLUSTER — preserve-3d & will-change entfernt
+   ========================================================= */
+
+.orbit-cluster {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 10;
+  /* will-change wird per JS nur beim Drag gesetzt */
+}
+
+/* =========================================================
+   ERDE
+   ========================================================= */
+
+.orbit-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* etwas größer, damit die Kugel inkl. Atmosphäre Luft hat */
+  width: min(520px, 78vw);
+  height: min(520px, 78vw);
+  transform: translate(-50%, -50%);
+  /* KEIN border-radius / overflow – sonst clippt Chromium/Brave das Canvas */
+  border-radius: 0;
+  overflow: visible;
+  pointer-events: auto;
+  cursor: pointer;
+  background: transparent;
+  box-shadow: none;
+  /* = Tiefe 0: Widgets davor haben z-index > 1000, dahinter < 1000 */
+  z-index: 1000;
+  will-change: transform;
+}
+
+.orbit-earth {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  overflow: visible;
+  pointer-events: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.orbit-core:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Nach dem Öffnen schrumpft die Erde und macht Platz für die Widgets.
+   Sie ist dann kein Button mehr – pointer-events: none, damit ihre
+   Fläche weder Klicks auf Widgets noch das Drehen per Drag blockiert. */
+.orbit-core {
+  --earth-open-scale: 0.68;
+}
+
+.orbit-core.is-open,
+.orbit-core.is-open:hover {
+  transform: translate(-50%, -50%) scale(var(--earth-open-scale));
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* =========================================================
+   EXPAND-EFFEKTE — gemeinsame Basis
+   Alle Effekte sitzen im Zentrum und werden per CSS-Variablen
+   aus dem JS parametrisiert (Winkel, Distanz, Dauer, Delay).
+   ========================================================= */
+
+.orbit-fx {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* =========================================================
+   PHASE 1 — AUFLADEN
+   ========================================================= */
+
+/* Energie-Partikel als kleine Kometen: Kopf innen, Schweif außen */
+.orbit-charge-particle {
+  width: var(--len, 14px);
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 999px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg,
+    rgba(230, 255, 248, 1) 0%,
+    rgba(0, 229, 191, 0.6) 40%,
+    rgba(0, 229, 191, 0) 100%);
+  box-shadow: 0 0 6px rgba(0, 229, 191, 0.55);
+  z-index: 5;
+  animation: chargeParticle var(--dur, 700ms) cubic-bezier(0.55, 0, 0.9, 0.4) var(--delay, 0ms) forwards;
+}
+
+@keyframes chargeParticle {
+  0%   { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--from)) scaleX(0.5); }
+  30%  { opacity: 0.9; }
+  100% { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--to)) scaleX(1.4); }
+}
+
+/* Ringe, die sich auf die Atmosphäre zusammenziehen */
+.orbit-charge-ring {
+  width: var(--ring, 600px);
+  height: var(--ring, 600px);
+  margin: calc(var(--ring, 600px) / -2) 0 0 calc(var(--ring, 600px) / -2);
+  border-radius: 50%;
+  border: 1px solid rgba(0, 229, 191, 0.6);
+  box-shadow:
+    0 0 18px rgba(0, 229, 191, 0.22),
+    inset 0 0 18px rgba(0, 229, 191, 0.16);
+  z-index: 5;
+  animation: chargeRing var(--dur, 420ms) cubic-bezier(0.5, 0, 0.75, 0) var(--delay, 0ms) forwards;
+}
+
+@keyframes chargeRing {
+  0%   { opacity: 0; transform: scale(1); }
+  35%  { opacity: var(--peak, 0.6); }
+  100% { opacity: 0; transform: scale(var(--end-scale, 0.55)); }
+}
+
+/* =========================================================
+   PHASE 2 — KNALL (liegt über der Erde)
+   ========================================================= */
+
+.orbit-flash {
+  width: var(--size, 400px);
+  height: var(--size, 400px);
+  margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(190, 255, 236, 0.7) 18%,
+    rgba(0, 229, 191, 0.35) 42%,
+    rgba(0, 168, 150, 0.08) 62%,
+    transparent 72%);
+  mix-blend-mode: screen;
+  z-index: 8;
+  animation: releaseFlash 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes releaseFlash {
+  0%   { opacity: 0; transform: scale(0.55); }
+  12%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+
+.orbit-shockwave {
+  width: var(--size, 400px);
+  height: var(--size, 400px);
+  margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
+  border-radius: 50%;
+  border: 1.5px solid rgba(160, 255, 230, 0.85);
+  box-shadow:
+    0 0 24px rgba(0, 229, 191, 0.4),
+    inset 0 0 24px rgba(0, 229, 191, 0.22);
+  z-index: 8;
+  animation: shockwave var(--dur, 950ms) cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) forwards;
+}
+
+@keyframes shockwave {
+  0%   { opacity: 0; transform: scale(0.92); }
+  8%   { opacity: var(--peak, 0.9); }
+  100% { opacity: 0; transform: scale(var(--end-scale, 3)); }
+}
+
+/* Funken: Kopf außen, Schweif innen */
+.orbit-spark-out {
+  width: var(--len, 18px);
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 999px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg,
+    rgba(0, 229, 191, 0) 0%,
+    rgba(0, 229, 191, 0.7) 60%,
+    rgba(234, 255, 248, 1) 100%);
+  z-index: 8;
+  animation: sparkOut var(--dur, 700ms) cubic-bezier(0.1, 0.9, 0.3, 1) var(--delay, 0ms) forwards;
+}
+
+@keyframes sparkOut {
+  0%   { opacity: 0; transform: rotate(var(--angle)) translateX(var(--from)) scaleX(0.4); }
+  15%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateX(var(--to)) scaleX(1); }
+}
+
+/* =========================================================
+   PHASE 3 — WIDGETS FLIEGEN RAUS
+   Position/Größe/Deckkraft steuert der RAF-Loop; CSS liefert
+   Leuchtspur und das kurze Aufglühen beim Start.
+   ========================================================= */
+
+.orbit-ray {
+  width: var(--len, 300px);
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 999px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg,
+    rgba(0, 229, 191, 0) 0%,
+    rgba(0, 229, 191, 0) 30%,
+    rgba(0, 229, 191, 0.45) 80%,
+    rgba(220, 255, 245, 0.9) 100%);
+  z-index: 5;
+  animation: rayTrace var(--dur, 700ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
+}
+
+@keyframes rayTrace {
+  0%   { opacity: 0;    transform: rotate(var(--angle)) scaleX(0); }
+  20%  { opacity: 0.85; }
+  100% { opacity: 0;    transform: rotate(var(--angle)) scaleX(1); }
+}
+
+.orbit-item.is-bursting {
+  animation: widgetIgnite 700ms cubic-bezier(0.16, 1, 0.3, 1) var(--burst-delay, 0ms) both;
+}
+
+@keyframes widgetIgnite {
+  0%   { filter: brightness(3.2) saturate(1.4); }
+  100% { filter: brightness(1) saturate(1); }
+}
+
+/* =========================================================
+   MODUL — Box-Shadow reduziert, preserve-3d raus
+   ========================================================= */
+
+.orbit-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 140px;
+  height: 140px;
+  margin-left: -70px;
+  margin-top: -70px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+
+  background:
+    radial-gradient(circle at 50% 32%,
+      rgba(0, 229, 191, 0.28) 0%,
+      rgba(0, 100, 110, 0.32) 35%,
+      rgba(2, 14, 16, 0.85) 75%,
+      rgba(0, 6, 8, 0.95) 100%);
+
+  /* Box-Shadow auf das Nötigste reduziert */
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 191, 0.42),
+    0 4px 12px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(226, 232, 240, 0.20);
+
+  color: var(--silver-pure);
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+
+  transform: translate3d(0, 0, 0) scale(0);
+  opacity: 0;
+  pointer-events: none;
+
+  /* transform/opacity setzt der RAF-Loop jeden Frame – eine Transition
+     darauf würde jede Bewegung verzögern. */
+  transition:
+    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.5s ease;
+}
+
+/* --depth-opacity wird per JS pro Frame gesetzt */
+.orbit.is-expanded .orbit-item {
+  opacity: var(--depth-opacity, 1);
+  pointer-events: auto;
+}
+
+.orbit-item::after {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(0, 229, 191, 0.16),
+    transparent 65%);
+  z-index: -1;
+  pointer-events: none;
+  /* Hinter der Erde leuchtet der Schein kaum noch */
+  opacity: calc(1 - var(--behind, 0) * 0.8);
+}
+
+/* =========================================================
+   RÜCKSEITE — Widgets hinter der Erde
+   --behind (0..1) wird per JS aus der Tiefe berechnet.
+   ========================================================= */
+
+.orbit-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%,
+    rgba(0, 8, 10, 0.5) 0%,
+    rgba(0, 3, 5, 0.78) 100%);
+  opacity: calc(var(--behind, 0) * 0.85);
+  pointer-events: none;
+}
+
+/* Hinter der Erde nicht anwählbar – Ziehen dreht dort den Orbit */
+.orbit.is-expanded .orbit-item.is-behind {
+  pointer-events: none;
+  cursor: default;
+}
+
+.orbit-item.is-warping::before {
+  display: none;
+}
+
+.orbit-item-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  transition: transform 0.4s cubic-bezier(0.6, 0, 0.3, 1),
+              opacity 0.4s ease,
+              filter 0.4s ease;
+}
+
+.orbit-item i {
+  font-size: 28px;
+  color: #ffffff;
+  filter: drop-shadow(0 0 10px rgba(0, 229, 191, 0.55));
+  transition: color 0.5s ease, filter 0.5s ease, transform 0.5s ease;
+}
+
+.orbit-item-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.9);
+  white-space: nowrap;
+  max-width: 124px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 0.22em;
+  transition: color 0.5s ease;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+.orbit-item:hover {
+  background:
+    radial-gradient(circle at 50% 32%,
+      rgba(0, 229, 191, 0.45) 0%,
+      rgba(0, 140, 150, 0.48) 35%,
+      rgba(2, 14, 16, 0.9) 75%,
+      rgba(0, 6, 8, 0.96) 100%);
+
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 191, 0.85),
+    0 8px 24px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(0, 229, 191, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.orbit-item:hover i {
+  color: #ffffff;
+  filter: drop-shadow(0 0 18px rgba(0, 229, 191, 1));
+  transform: scale(1.12);
+}
+
+.orbit-item:hover .orbit-item-label {
+  color: #ffffff;
+}
+
+.orbit-item[data-target="placeholder"] {
+  background:
+    radial-gradient(circle at 50% 32%,
+      rgba(0, 168, 150, 0.14) 0%,
+      rgba(2, 14, 16, 0.85) 55%,
+      rgba(0, 6, 8, 0.95) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 191, 0.22),
+    inset 0 1px 0 rgba(226, 232, 240, 0.10);
+}
+
+.orbit.is-expanded .orbit-item[data-target="placeholder"] {
+  opacity: calc(var(--depth-opacity, 1) * 0.75);
+}
+
+.orbit-item[data-target="placeholder"] i {
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.orbit-item[data-target="placeholder"] .orbit-item-label {
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.orbit.is-expanded .orbit-item[data-target="placeholder"]:hover {
+  opacity: var(--depth-opacity, 1);
+}
+
+.orbit-item[data-target="empty"] {
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 229, 191, 0.18);
+}
+
+.orbit.is-expanded .orbit-item[data-target="empty"] {
+  opacity: calc(var(--depth-opacity, 1) * 0.45);
+}
+
+.orbit.is-expanded .orbit-item[data-target="empty"]:hover {
+  opacity: calc(var(--depth-opacity, 1) * 0.9);
+}
+
+.orbit-item[data-target="empty"]:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 191, 0.5),
+    0 0 50px rgba(0, 229, 191, 0.2);
+}
+
+.orbit-item[data-target="empty"] i {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+/* =========================================================
+   WIDGET SCHRUMPFT ZUM PUNKT
+   ========================================================= */
+
+.orbit-item.is-warping {
+  pointer-events: none;
+  z-index: 9999 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.orbit-item.is-warping::after {
+  display: none;
+}
+
+.orbit-item.is-shrinking .orbit-item-inner {
+  animation: shrinkToPoint 0.35s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+@keyframes shrinkToPoint {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+  60% {
+    transform: scale(0.35);
+    opacity: 1;
+    filter: brightness(3);
+  }
+  100% {
+    transform: scale(0.08);
+    opacity: 1;
+    filter: brightness(8);
+  }
+}
+
+/* =========================================================
+   DER FLIEGENDE PUNKT
+   ========================================================= */
+
+.orbit-spark {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 16px rgba(255, 255, 255, 1),
+    0 0 36px rgba(255, 255, 255, 0.95),
+    0 0 70px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  z-index: 9500;
+  opacity: 0;
+  animation: sparkBorn 0.2s ease-out forwards;
+}
+
+@keyframes sparkBorn {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.orbit-spark.is-flying {
+  transition:
+    left 0.45s cubic-bezier(0.5, 0, 0.75, 0),
+    top 0.45s cubic-bezier(0.5, 0, 0.75, 0),
+    transform 0.45s cubic-bezier(0.5, 0, 0.75, 0),
+    opacity 0.45s ease;
+}
+
+.orbit-spark.is-arrived {
+  transform: scale(0.15);
+  opacity: 0;
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.6),
+    0 0 12px rgba(255, 255, 255, 0.3);
+}
+
+.orbit-trail-dot {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.95),
+    0 0 22px rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  z-index: 9400;
+  animation: trailFade 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes trailFade {
+  0% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.1);
+    opacity: 0;
+  }
+}
+
+/* =========================================================
+   BURST
+   ========================================================= */
+
+.orbit-warp-burst {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 250;
+  background:
+    radial-gradient(circle,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(0, 229, 191, 0.85) 20%,
+      rgba(0, 168, 150, 0.4) 45%,
+      transparent 75%);
+  transform: translate(-50%, -50%);
+  animation: warpBurst 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes warpBurst {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0;
+  }
+  10% {
+    width: 80px;
+    height: 80px;
+    opacity: 1;
+  }
+  40% {
+    width: 400px;
+    height: 400px;
+    opacity: 0.7;
+  }
+  100% {
+    width: 900px;
+    height: 900px;
+    opacity: 0;
+  }
+}
+
+@keyframes openFromCenter {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.15);
+    opacity: 0;
+    filter: blur(12px) brightness(1.6);
+  }
+  35% {
+    transform: translate3d(0, 0, 0) scale(0.85);
+    opacity: 0.85;
+    filter: blur(4px) brightness(1.2);
+  }
+  70% {
+    transform: translate3d(0, 0, 0) scale(1.03);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* =========================================================
+   TOAST — backdrop-filter raus
+   ========================================================= */
+
+#orbit-toast {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+
+  padding: 12px 24px;
+
+  background: rgba(0, 6, 8, 0.96);
+
+  border: 1px solid rgba(0, 229, 191, 0.4);
+  border-radius: 999px;
+
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+#orbit-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 640px) {
+  .orbit { perspective: 1100px; }
+
+  .orbit-core {
+    width: min(300px, 78vw);
+    height: min(300px, 78vw);
+  }
+
+  .orbit-item {
+    width: 100px;
+    height: 100px;
+    margin-left: -50px;
+    margin-top: -50px;
+    gap: 5px;
+  }
+
+  .orbit-item i { font-size: 20px; }
+  .orbit-item-label {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    max-width: 90px;
+    padding-left: 0.16em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-fx {
+    display: none;
+  }
+}

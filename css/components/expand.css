@@ -1,0 +1,115 @@
+/* Expand Overlay (Neural) */
+#expand-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .4s ease, visibility .4s ease;
+}
+
+#expand-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  cursor: auto;
+}
+
+#expand-card {
+  position: relative;
+  width: min(92vw, 720px);
+  height: min(86vh, 820px);
+  border-radius: 20px;
+  background: linear-gradient(150deg, rgba(0,76,84,0.35) 0%, rgba(0,4,6,0.94) 45%, rgba(0,0,0,0.97) 100%);
+  border: 1px solid rgba(0,118,128,0.6);
+  box-shadow:
+    0 0 0 1px rgba(0,118,128,0.4),
+    0 0 60px rgba(0,118,128,0.3),
+    0 24px 60px rgba(0,0,0,0.65),
+    inset 0 1px 0 rgba(226,232,240,0.14);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: scale(0.72) translateY(24px);
+  opacity: 0;
+  transition: transform .5s cubic-bezier(0.22,1,0.32,1), opacity .45s ease;
+}
+
+#expand-overlay.open #expand-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+.expand-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(165,172,175,0.35);
+  color: var(--silver-bright);
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.expand-close:hover {
+  background: rgba(0,76,84,0.6);
+  border-color: var(--midnight-light);
+  box-shadow: 0 0 16px rgba(0,118,128,0.55);
+}
+
+.expand-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 2rem;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.expand-placeholder {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(0,180,190,0.9);
+  text-shadow: 0 0 40px rgba(0,118,128,0.55);
+}
+
+.expand-subline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(148,163,184,0.75);
+  text-transform: uppercase;
+}
+
+.expand-databody {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(226,232,240,0.85);
+  max-width: 480px;
+}
+
+#expand-bvg-wrap {
+  display: none;
+}

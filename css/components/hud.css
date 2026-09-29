@@ -1,0 +1,94 @@
+/* Corner HUD + Key Hints + Bottom Controls */
+.corner-hud {
+  position: fixed;
+  z-index: 45;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .6rem;
+  letter-spacing: .06em;
+  color: rgba(165,172,175,0.5);
+  pointer-events: none;
+  top: 72px;
+  right: 18px;
+  text-align: right;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+body.state-carousel .corner-hud,
+body.state-sphere .corner-hud,
+body.state-neural .corner-hud {
+  opacity: 1;
+}
+
+.corner-hud .accent {
+  color: rgba(0,118,128,0.8);
+}
+
+#key-hints {
+  position: fixed;
+  bottom: 12px;
+  right: 18px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .58rem;
+  color: rgba(165,172,175,0.4);
+  letter-spacing: .04em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  z-index: 45;
+}
+
+body.state-carousel #key-hints {
+  opacity: 1;
+}
+
+/* Globale Steuerung unten links (Ton, Sternenhimmel) – klein und zurückhaltend */
+#bg-controls {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 50;
+  display: flex;
+  gap: 6px;
+}
+
+.bg-ctrl {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(165, 172, 175, 0.18);
+  background: rgba(0, 20, 24, 0.35);
+  color: rgba(205, 211, 214, 0.55);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.55;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.25s ease, color 0.25s ease, border-color 0.25s ease,
+              box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.bg-ctrl:hover {
+  opacity: 1;
+  color: var(--silver-pure);
+  border-color: rgba(0, 229, 191, 0.4);
+  transform: scale(1.06);
+}
+
+/* Aktiv: leicht türkis */
+.bg-ctrl[aria-pressed="true"] {
+  color: var(--midnight-neon);
+  border-color: rgba(0, 229, 191, 0.3);
+  box-shadow: 0 0 10px rgba(0, 229, 191, 0.15);
+}
+
+@media (max-width: 640px) {
+  #bg-controls { left: 12px; bottom: 14px; }
+
+  #key-hints,
+  .corner-hud {
+    display: none;
+  }
+}

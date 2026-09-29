@@ -1,0 +1,158 @@
+/* =========================================================
+   HOLO FRAMEWORK — Background
+   Statischer Verlauf + atmender Kern + Licht-Ping
+   ========================================================= */
+
+/* =========================================================
+   BASIS-VERLAUF (sehr dunkel, mit einem Hauch Teal)
+   ========================================================= */
+
+#bg-base {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 45%,
+      rgba(0, 40, 46, 0.55) 0%,
+      rgba(0, 20, 24, 0.85) 35%,
+      rgba(0, 6, 8, 0.98) 70%,
+      #000 100%);
+}
+
+/* =========================================================
+   ATMENDER KERN (Licht hinter dem Orbit)
+   Atmet alle 12 Sekunden sanft heller / dunkler.
+   ========================================================= */
+
+#bg-breath {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  width: 90vmin;
+  height: 90vmin;
+  margin-left: -45vmin;
+  margin-top: -45vmin;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+
+  background:
+    radial-gradient(circle,
+      rgba(0, 229, 191, 0.14) 0%,
+      rgba(0, 168, 150, 0.06) 30%,
+      rgba(0, 76, 84, 0.02) 55%,
+      transparent 75%);
+
+  filter: blur(40px);
+  animation: bgBreath 12s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@keyframes bgBreath {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* =========================================================
+   LICHT-PING (alle 8 Sekunden ein Impuls vom Zentrum)
+   ========================================================= */
+
+#bg-ping {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+
+  box-shadow:
+    0 0 60px 20px rgba(0, 229, 191, 0.14),
+    0 0 120px 40px rgba(0, 168, 150, 0.06);
+
+  animation: bgPing 8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes bgPing {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  6% {
+    transform: scale(0.15);
+    opacity: 0.9;
+  }
+  45% {
+    transform: scale(1.2);
+    opacity: 0.2;
+  }
+  70%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* =========================================================
+   STERNENHIMMEL (Canvas, gezeichnet von js/core/StarField.js)
+   Über Verlauf, Kern und Ping – unter Scanlines und Inhalt.
+   ========================================================= */
+
+#bg-stars {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* =========================================================
+   SCANLINES (bleiben — sind schon in main.css, hier nur
+   sicherstellen, dass sie über dem Hintergrund liegen)
+   ========================================================= */
+
+.scanlines {
+  z-index: 2;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 640px) {
+  #bg-breath {
+    width: 100vmin;
+    height: 100vmin;
+    margin-left: -50vmin;
+    margin-top: -50vmin;
+    filter: blur(30px);
+  }
+
+  #bg-ping {
+    box-shadow:
+      0 0 40px 12px rgba(0, 229, 191, 0.12),
+      0 0 80px 24px rgba(0, 168, 150, 0.05);
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  #bg-breath,
+  #bg-ping {
+    animation: none !important;
+    opacity: 0.5;
+  }
+}

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HOLO FRAMEWORK — Modular SPA</title>
+
+  <script src="https://unpkg.com/lucide@1.48.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/components/nav.css" />
+  <link rel="stylesheet" href="css/components/cursor.css" />
+  <link rel="stylesheet" href="css/components/hud.css" />
+  <link rel="stylesheet" href="css/components/modal.css" />
+  <link rel="stylesheet" href="css/modules/carousel.css" />
+  <link rel="stylesheet" href="css/modules/sphere.css" />
+  <link rel="stylesheet" href="css/modules/bvg.css" />
+  <link rel="stylesheet" href="css/modules/weather.css" />
+  <link rel="stylesheet" href="css/modules/watchtime.css" />
+  <link rel="stylesheet" href="css/modules/nfl.css" />
+  <link rel="stylesheet" href="css/components/orbit.css" />
+  <link rel="stylesheet" href="css/background.css" />
+  </head>
+
+<body class="state-home">
+
+<div id="bg-base"></div>
+<div id="bg-breath"></div>
+<div id="bg-ping"></div>
+<canvas id="bg-stars" aria-hidden="true"></canvas>
+<div class="scanlines"></div>
+<div id="cursor-flare"></div>
+
+<nav id="nav-bar">
+  <div id="brand-title">
+    <i class="fa-solid fa-cube" style="color:var(--midnight-light)"></i>
+    HOLO <span>FRAMEWORK</span>
+  </div>
+  <button id="btn-back" class="nav-btn" title="Zurück zur Übersicht">
+    <i class="fa-solid fa-arrow-left"></i>
+  </button>
+</nav>
+
+<div class="corner-hud">
+  <div class="line">FRAME <span class="accent" id="hud-frame">60</span></div>
+</div>
+
+<div id="stage">
+  <div id="orbit-stage"></div>
+
+  <div id="carousel-slot" class="module-slot">
+    <div class="module-inner" id="carousel-mount">
+      <div class="carousel-wrapper" id="carousel-wrapper">
+        <div class="carousel-track" id="carousel-track"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sphere-slot" class="module-slot">
+    <div class="module-inner" id="sphere-mount">
+      <div class="sphere-wrapper" id="sphere-wrapper">
+        <div class="gyro-ring gyro-ring-outer" id="ring-outer"></div>
+        <div class="gyro-ring gyro-ring-inner" id="ring-inner"></div>
+        <div id="sphere-core-dot"></div>
+        <div id="sphere-anchor"></div>
+        <div class="sphere-viewport" id="sphere-viewport"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="watchtime-slot" class="module-slot">
+    <div class="module-inner" id="watchtime-mount"></div>
+  </div>
+
+  <div id="nfl-slot" class="module-slot">
+    <div class="module-inner" id="nfl-mount"></div>
+  </div>
+</div>
+
+<div id="dots-container"></div>
+<div id="autoplay-progress"><div class="bar" id="autoplay-bar"></div></div>
+
+<div id="bg-controls">
+  <button id="btn-audio" class="bg-ctrl" title="Ton an/aus" aria-pressed="true">
+    <i class="fa-solid fa-volume-high"></i>
+  </button>
+  <button id="btn-stars-speed" class="bg-ctrl" title="Sternen-Geschwindigkeit" aria-pressed="false">
+    <i class="fa-solid fa-forward"></i>
+  </button>
+  <button id="btn-stars-network" class="bg-ctrl" title="Sternen-Netzwerk" aria-pressed="true">
+    <i class="fa-solid fa-circle-nodes"></i>
+  </button>
+</div>
+
+<div id="key-hints">← → · WHEEL · SPACE · DRAG</div>
+
+<button id="btn-add-favorite" title="Favorit hinzufügen">
+  <i data-lucide="plus" style="width:24px;height:24px;"></i>
+</button>
+
+<div id="add-modal">
+  <div id="modal-box">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(226,232,240,0.4);background:radial-gradient(circle at 30% 30%, rgba(0,229,191,0.2), rgba(0,35,40,0.9) 85%);box-shadow:0 0 20px rgba(0,229,191,0.35);">
+          <i data-lucide="link" style="width:16px;height:16px;color:var(--midnight-neon);"></i>
+        </div>
+        <div>
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--silver-pure);">Favorit Hinzufügen</h3>
+          <p style="font-size:10.5px;color:rgba(148,163,184,0.85);">Web-URL in 3D Kugel einbinden</p>
+        </div>
+      </div>
+      <button id="modal-close-btn" class="nav-btn" style="width:36px;height:36px;" title="Schließen">
+        <i data-lucide="x" style="width:14px;height:14px;"></i>
+      </button>
+    </div>
+
+    <form id="add-url-form" style="margin-top:20px;display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label class="modal-label">Web-Adresse (URL) *</label>
+        <div class="modal-input-wrap">
+          <i data-lucide="globe"></i>
+          <input id="input-url" type="text" required placeholder="https://github.com" class="modal-input" />
+        </div>
+      </div>
+      <div>
+        <label class="modal-label">Name / Titel (Optional)</label>
+        <div class="modal-input-wrap">
+          <i data-lucide="bookmark"></i>
+          <input id="input-title" type="text" placeholder="z.B. GitHub Vault" class="modal-input" />
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:rgba(148,163,184,0.9);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Vorschau</div>
+        <div class="preview-box">
+          <div class="preview-icon-wrap">
+            <i id="preview-fallback-icon" data-lucide="external-link" style="width:16px;height:16px;color:var(--midnight-neon);"></i>
+            <img id="preview-favicon" alt="favicon" style="display:none;" />
+          </div>
+          <div style="display:flex;flex-direction:column;overflow:hidden;">
+            <span id="preview-title" style="font-size:12px;font-weight:600;color:var(--silver-pure);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Domain Name</span>
+            <span id="preview-domain" style="font-size:10px;color:rgba(148,163,184,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">https://domain.com</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;padding-top:8px;">
+        <button type="button" id="modal-cancel-btn" class="modal-btn-secondary">Abbrechen</button>
+        <button type="submit" class="modal-btn-primary">
+          <i data-lucide="check" style="width:14px;height:14px;color:var(--midnight-neon);"></i>
+          <span>Speichern</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
