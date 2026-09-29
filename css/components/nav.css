@@ -63,11 +63,7 @@
   transition: opacity 0.3s ease, transform 0.25s ease;
 }
 
-body.state-carousel #btn-back,
-body.state-sphere #btn-back,
-body.state-watchtime #btn-back,
-body.state-nfl #btn-back,
-body.state-neural #btn-back {
+body:not(.state-home) #btn-back {
   opacity: 1;
   pointer-events: auto;
   transform: scale(1);

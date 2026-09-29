@@ -44,6 +44,7 @@ export class OrbitMenu {
   constructor(rootEl, options = {}) {
     this.root = rootEl;
     this.onOpenProject = options.onOpenProject || (() => {});
+    this.isOpenable = options.isOpenable || (() => false);
 
     this._items = [];
     this._toast = null;
@@ -1277,7 +1278,7 @@ export class OrbitMenu {
   _handleClick(project, btn) {
     audio.click();
 
-    const isReal = ['carousel', 'sphere', 'watchtime', 'nfl'].includes(project.target);
+    const isReal = this.isOpenable(project);
 
     if (!isReal) {
       btn.animate(

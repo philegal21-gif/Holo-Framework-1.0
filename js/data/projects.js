@@ -2,10 +2,8 @@
  * Zentrale Projektliste für das Orbit-Menü.
  *
  * target:
- *   'carousel'   → öffnet das Carousel-Modul
- *   'sphere'     → öffnet das Sphere-Modul
- *   'watchtime'  → öffnet den Football-Stream-Player
- *   'nfl'        → öffnet den NFL-Spielplan (apps/nfl)
+ *   '<modul-id>' → öffnet das Modul mit dieser id aus js/modules/index.js
+ *                  (carousel, sphere, watchtime, nfl, …)
  *   'placeholder'→ zeigt "Coming soon"-Hinweis
  *   'empty'      → leerer Slot mit "+", nicht klickbar
  */

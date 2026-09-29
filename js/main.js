@@ -1,22 +1,9 @@
 import { audio } from './core/AudioEngine.js';
 import { ViewManager } from './core/ViewManager.js';
-import { bvg } from './modules/BvgModule.js';
-import { CarouselModule } from './modules/CarouselModule.js';
-import { SphereModule } from './modules/SphereModule.js';
-import { WatchtimeModule } from './modules/WatchtimeModule.js';
-import { NflModule } from './modules/NflModule.js';
+import { ModuleRegistry } from './core/ModuleRegistry.js';
+import { MODULES } from './modules/index.js';
 import { OrbitMenu } from './components/OrbitMenu.js';
 import { StarField } from './core/StarField.js';
-
-const DEFAULT_FAVORITES = [
-  { id: 'fav_yt',   title: 'YouTube',       url: 'https://www.youtube.com' },
-  { id: 'fav_ig',   title: 'Instagram',     url: 'https://www.instagram.com' },
-  { id: 'fav_fb',   title: 'Facebook',      url: 'https://www.facebook.com' },
-  { id: 'fav_gem',  title: 'Gemini',        url: 'https://gemini.google.com' },
-  { id: 'fav_gol',  title: 'golem.de',      url: 'https://www.golem.de' },
-  { id: 'fav_ka',   title: 'Kleinanzeigen', url: 'https://www.kleinanzeigen.de' },
-  { id: 'fav_fmhy', title: 'FMHY',          url: 'https://fmhy.pages.dev/' }
-];
 
 (function bootstrap() {
    // =========================================================
@@ -102,16 +89,7 @@ const DEFAULT_FAVORITES = [
   // MODULES
   // =========================================================
 
-  const carousel = new CarouselModule(document.getElementById('carousel-wrapper'));
-  const sphere = new SphereModule(document.getElementById('sphere-wrapper'), {
-    favorites: DEFAULT_FAVORITES
-  });
-  sphere._updateRadius();
-
-  new WatchtimeModule(document.getElementById('watchtime-mount'));
-  new NflModule(document.getElementById('nfl-mount'));
-
-  bvg.start();
+  ModuleRegistry.register(MODULES).mountAll();
 
   // =========================================================
   // ORBIT MENU
@@ -119,21 +97,10 @@ const DEFAULT_FAVORITES = [
 
   const orbitStage = document.getElementById('orbit-stage');
 
-  const orbit = new OrbitMenu(orbitStage, {
+  new OrbitMenu(orbitStage, {
+    isOpenable: (project) => ModuleRegistry.has(project.target),
     onOpenProject: (project) => {
-      if (project.target === 'carousel') {
-        ViewManager.focusCarousel();
-        audio.open();
-      } else if (project.target === 'sphere') {
-        ViewManager.focusSphere();
-        audio.open();
-      } else if (project.target === 'watchtime') {
-        ViewManager.focusWatchtime();
-        audio.open();
-      } else if (project.target === 'nfl') {
-        ViewManager.focusNfl();
-        audio.open();
-      }
+      if (ModuleRegistry.open(project.target)) audio.open();
     }
   });
 
@@ -160,67 +127,6 @@ const DEFAULT_FAVORITES = [
         ViewManager.goHome();
         audio.close();
       }
-      return;
-    }
-    if (ViewManager.getState() === 'CAROUSEL_FOCUS') {
-      if (['ArrowRight', 'ArrowDown'].includes(e.key)) {
-        e.preventDefault();
-        carousel.next();
-      } else if (['ArrowLeft', 'ArrowUp'].includes(e.key)) {
-        e.preventDefault();
-        carousel.prev();
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        carousel.toggleAutoPlay();
-        audio.click();
-      }
-    }
-  });
-
-  // =========================================================
-  // VIEW-CHANGE
-  // =========================================================
-
-  ViewManager.onChange((next) => {
-    if (next !== 'CAROUSEL_FOCUS' && carousel.isAutoPlaying) {
-      carousel._stopAutoPlay();
-    }
-    if (next === 'SPHERE_FOCUS') {
-      sphere._updateRadius();
-    }
-  });
-
-  // =========================================================
-  // RESIZE
-  // =========================================================
-
-  let resizeTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      carousel.onResize();
-      sphere.onResize();
-    }, 80);
-  });
-
-  // =========================================================
-  // ANIMATION LOOP
-  // =========================================================
-
-  (function loop() {
-    sphere.tick();
-    requestAnimationFrame(loop);
-  })();
-
-  // =========================================================
-  // VISIBILITY
-  // =========================================================
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      bvg.stop();
-    } else {
-      bvg.start();
     }
   });
 
