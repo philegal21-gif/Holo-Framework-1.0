@@ -4,6 +4,7 @@ import { ModuleRegistry } from './core/ModuleRegistry.js';
 import { MODULES } from './modules/index.js';
 import { OrbitMenu } from './components/OrbitMenu.js';
 import { StarField } from './core/StarField.js';
+import { BackgroundGlow } from './core/BackgroundGlow.js';
 
 (function bootstrap() {
    // =========================================================
@@ -13,6 +14,11 @@ import { StarField } from './core/StarField.js';
   // =========================================================
   // HINTERGRUND
   // =========================================================
+
+  new BackgroundGlow(
+    document.getElementById('bg-base'),
+    document.getElementById('bg-breath')
+  );
 
   const stars = new StarField(document.getElementById('bg-stars'));
 
