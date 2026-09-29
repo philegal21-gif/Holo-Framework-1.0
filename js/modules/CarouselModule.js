@@ -89,7 +89,7 @@ export class CarouselModule {
         tile.dataset.type = 'weather';
         tile.innerHTML = `
           <div class="tile-inner tile-weather">
-            ${weather.buildWidgetHTML('tile')}
+            ${weather.buildWidgetHTML()}
           </div>`;
         this._weatherTile = tile;
       } else {
@@ -121,7 +121,7 @@ export class CarouselModule {
       bvg.bindWidget(this._bvgTile, 'tile');
     }
     if (this._weatherTile) {
-      weather.bindWidget(this._weatherTile, 'tile');
+      weather.bindWidget(this._weatherTile);
     }
 
     this.update();
@@ -372,9 +372,7 @@ export class CarouselModule {
     this._tiltRAF = null;
     clearTimeout(this._wheelT);
 
-    if (typeof weather.unbindWidget === 'function') {
-      weather.unbindWidget();
-    }
+    if (this._weatherTile) weather.unbindWidget(this._weatherTile);
 
     this.track.innerHTML = '';
     this.dotsContainer.innerHTML = '';

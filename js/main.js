@@ -3,6 +3,7 @@ import { ViewManager } from './core/ViewManager.js';
 import { ModuleRegistry } from './core/ModuleRegistry.js';
 import { MODULES } from './modules/index.js';
 import { OrbitMenu } from './components/OrbitMenu.js';
+import { HomeTiles } from './components/HomeTiles.js';
 import { StarField } from './core/StarField.js';
 import { BackgroundGlow } from './core/BackgroundGlow.js';
 
@@ -109,6 +110,12 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
       if (ModuleRegistry.open(project.target)) audio.open();
     }
   });
+
+  // =========================================================
+  // HOME TILES (BVG + Wetter)
+  // =========================================================
+
+  new HomeTiles();
 
   // =========================================================
   // BACK-BUTTON

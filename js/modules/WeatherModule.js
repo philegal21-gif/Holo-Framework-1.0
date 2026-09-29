@@ -10,15 +10,14 @@ class WeatherModule {
 
   constructor() {
     this.data = null;
-    this.loading = false;
     this.lastUpdate = null;
     this.refreshTimer = null;
-    this._boundWidget = null;
-    this._refreshBtn = null;
-    this._onRefresh = null;
+    this._inflight = null;
+    // Mehrere Widgets (Karussell + Startseite) teilen sich Daten und Timer
+    this._widgets = new Map();   // widget → refresh-Handler
   }
 
-  buildWidgetHTML(mode = 'tile') {
+  buildWidgetHTML() {
     return `
       <div class="weather-widget" data-weather-widget>
 
@@ -109,88 +108,84 @@ class WeatherModule {
     `;
   }
 
-  bindWidget(tile, mode = 'tile') {
-    this.unbindWidget();
-
-    const widget = tile.querySelector('[data-weather-widget]');
-
-    if (!widget) return;
-
-    this._boundWidget = widget;
-    this.load(widget);
+  bindWidget(root) {
+    const widget = root.querySelector('[data-weather-widget]');
+    if (!widget || this._widgets.has(widget)) return;
 
     const refresh = widget.querySelector('[data-weather-refresh]');
+    const onRefresh = (e) => {
+      e.stopPropagation();
+      refresh.classList.add('rotating');
+      this.loadAll().finally(() => {
+        setTimeout(() => refresh.classList.remove('rotating'), 500);
+      });
+    };
+    if (refresh) refresh.addEventListener('click', onRefresh);
+    this._widgets.set(widget, onRefresh);
 
-    if (refresh) {
-      this._onRefresh = (e) => {
-        e.stopPropagation();
-        refresh.classList.add('rotating');
-        this.load(widget).finally(() => {
-          setTimeout(() => {
-            refresh.classList.remove('rotating');
-          }, 500);
-        });
-      };
-      refresh.addEventListener('click', this._onRefresh);
-      this._refreshBtn = refresh;
+    // Frische Daten direkt übernehmen, sonst laden
+    const fresh = this.data && (Date.now() - this.lastUpdate) < 5 * 60 * 1000;
+    if (fresh) this.render(widget, this.data);
+    else this.loadAll();
+
+    if (!this.refreshTimer) {
+      this.refreshTimer = setInterval(() => this.loadAll(), 10 * 60 * 1000);
     }
-
-    this.refreshTimer = setInterval(() => {
-      if (this._boundWidget && document.body.contains(this._boundWidget)) {
-        this.load(this._boundWidget);
-      }
-    }, 10 * 60 * 1000);
   }
 
-  unbindWidget() {
-    if (this._refreshBtn && this._onRefresh) {
-      this._refreshBtn.removeEventListener('click', this._onRefresh);
-    }
-    this._refreshBtn = null;
-    this._onRefresh = null;
-    this._boundWidget = null;
-    if (this.refreshTimer) {
+  /**
+   * Ohne Argument werden alle Widgets gelöst.
+   */
+  unbindWidget(root) {
+    const targets = root
+      ? [root.matches?.('[data-weather-widget]') ? root : root.querySelector('[data-weather-widget]')]
+      : [...this._widgets.keys()];
+
+    targets.forEach(widget => {
+      const onRefresh = this._widgets.get(widget);
+      if (!onRefresh) return;
+      widget.querySelector('[data-weather-refresh]')?.removeEventListener('click', onRefresh);
+      this._widgets.delete(widget);
+    });
+
+    if (!this._widgets.size && this.refreshTimer) {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
   }
 
-  async load(widget) {
+  // Parallele Aufrufe teilen sich eine laufende Anfrage
+  loadAll() {
+    if (!this._inflight) {
+      this._inflight = this._loadAll().finally(() => { this._inflight = null; });
+    }
+    return this._inflight;
+  }
 
-    if (!widget || this.loading) return;
+  async _loadAll() {
+    for (const widget of this._widgets.keys()) {
+      if (!document.body.contains(widget)) this.unbindWidget(widget);
+    }
+    if (!this._widgets.size) return;
 
-    this.loading = true;
+    // Widgets, die während der Anfrage gebunden werden, hängen sich an
+    // diese an – deshalb die Liste immer frisch aus _widgets lesen.
+    const each = fn => [...this._widgets.keys()].forEach(fn);
 
-    widget.classList.add('loading');
-
+    each(w => w.classList.add('loading'));
     try {
-
-      const response = await fetch(WEATHER_URL, {
-        cache: 'no-store'
-      });
-
+      const response = await fetch(WEATHER_URL, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`Weather API error: ${response.status}`);
       }
-
-      const data = await response.json();
-
-      this.data = data;
-      this.lastUpdate = new Date();
-
-      this.render(widget, data);
-
+      this.data = await response.json();
+      this.lastUpdate = Date.now();
+      each(w => this.render(w, this.data));
     } catch (error) {
-
       console.error('WeatherModule:', error);
-
-      this.renderError(widget);
-
+      each(w => this.renderError(w));
     } finally {
-
-      this.loading = false;
-      widget.classList.remove('loading');
-
+      each(w => w.classList.remove('loading'));
     }
   }
 
@@ -263,7 +258,7 @@ class WeatherModule {
 
     if (updatedEl) {
 
-      const time = new Date().toLocaleTimeString(
+      const time = new Date(this.lastUpdate ?? Date.now()).toLocaleTimeString(
         'de-DE',
         {
           hour: '2-digit',
