@@ -5,7 +5,13 @@ export class BvgModule {
   constructor() {
     this.STOP_ID = '900120013';
     this.VALID_LINES = ['M13', '16'];
-    this.API_BASE = 'https://v6.vbb.transport.rest';
+    // Kostenlose Community-APIs (gleiche Haltestellen-IDs) – fällt eine aus,
+    // wird die nächste versucht.
+    this.API_BASES = [
+      'https://v6.vbb.transport.rest',
+      'https://v6.bvg.transport.rest'
+    ];
+    this.TIMEOUT = 8000;
     this.REFRESH_INTERVAL = 30000;
     this._timer = null;
     this._running = false;
@@ -23,11 +29,32 @@ export class BvgModule {
     return this._inflight;
   }
 
+  // Ohne Timeout bliebe das Widget bei einem hängenden Server ewig auf "Lade…"
+  async _fetchWithTimeout(url) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.TIMEOUT);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error(`BVG API ${res.status}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async _fetchDepartures() {
-    const url = `${this.API_BASE}/stops/${this.STOP_ID}/departures?duration=60&results=20`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('BVG API error');
-    const data = await res.json();
+    const path = `/stops/${this.STOP_ID}/departures?duration=60&results=20`;
+    let data = null;
+    let lastError = null;
+    for (const base of this.API_BASES) {
+      try {
+        data = await this._fetchWithTimeout(base + path);
+        break;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (!data) throw lastError || new Error('BVG API error');
     const departures = (data.departures || []).filter(d =>
       d.line && this.VALID_LINES.includes(d.line.name)
     ).slice(0, 6);
@@ -75,7 +102,7 @@ export class BvgModule {
 
   _renderInto(listEl, updateEl, departures, error) {
     if (error || !departures.length) {
-      listEl.innerHTML = this._statusHTML(error ? 'Keine Verbindung' : 'Keine Abfahrten');
+      listEl.innerHTML = this._statusHTML(error ? 'BVG-Dienst nicht erreichbar' : 'Keine Abfahrten');
     } else {
       listEl.innerHTML = departures.map(d => this._rowHTML(d)).join('');
     }

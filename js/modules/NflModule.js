@@ -9,7 +9,6 @@ import { NFL_GAMES } from '../data/nflSchedule.js';
  * - 18 Wochen-Reiter, Team-Filter (Mehrfachauswahl), Spielkarten "Heim vs. Gast"
  * - Countdown bis Kickoff, Sortierung live → kommend → beendet
  * - Live-Spielstände von ESPN, Streams von streamfree.top (sofern vorhanden)
- * - PIN-Sperre wie im Original
  * Alle Timer laufen nur, solange die Ansicht offen ist.
  */
 
@@ -19,8 +18,6 @@ const ESPN_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/sco
 const STREAM_API = 'https://streamfree.top/api/v1/streams?category=football';
 
 const SEASON = 2026;
-const PIN = '1109';
-const PIN_KEY = 'nfl-unlocked';
 const WEEKS = 18;
 const GAME_LENGTH = 3 * 3600000;       // ohne Live-Daten gilt ein Spiel 3 h nach Kickoff als beendet
 const SCORE_INTERVAL = 30000;
@@ -98,7 +95,6 @@ export class NflModule {
     this.scores = new Map();    // game.id → { home, away, badge }
     this._scoresDone = new Set(); // Wochen, deren Spiele alle final sind
     this.streams = new Map();   // game.id → stream
-    this.pinEntry = '';
     this._timers = [];
     this._built = false;
 
@@ -155,9 +151,6 @@ export class NflModule {
         `<button class="nfl-filter-btn" data-team="${esc(t.name)}" title="${esc(t.name)}"><img src="${LOGO(t.abbr)}" alt="${esc(t.abbr)}" loading="lazy"></button>`)
     ].join('');
 
-    const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n =>
-      `<button class="nfl-pin-key" data-key="${n}">${n}</button>`).join('');
-
     this.root.innerHTML = `
       <div class="nfl-root">
         <div class="nfl-scroll" data-el="scroll">
@@ -192,18 +185,6 @@ export class NflModule {
             </div>
             <div class="nfl-modal-foot">Wiedergabe über externen Anbieter. Bei Problemen eine andere Quelle auswählen.</div>
           </section>
-        </div>
-
-        <div class="nfl-pin" data-el="pin" ${this._isUnlocked() ? 'hidden' : ''}>
-          <div class="nfl-pin-panel">
-            <div class="nfl-pin-icon"><i class="fa-solid fa-football"></i></div>
-            <div class="nfl-pin-title">NFL Spielplan<small>PIN eingeben</small></div>
-            <div class="nfl-pin-dots" data-el="pinDots">
-              <span class="nfl-pin-dot"></span><span class="nfl-pin-dot"></span>
-              <span class="nfl-pin-dot"></span><span class="nfl-pin-dot"></span>
-            </div>
-            <div class="nfl-pin-pad">${keys}<button class="nfl-pin-key zero" data-key="0">0</button></div>
-          </div>
         </div>
       </div>`;
 
@@ -254,24 +235,13 @@ export class NflModule {
     e.frame.addEventListener('mouseenter', () => flare?.style.setProperty('opacity', '0'));
     e.frame.addEventListener('mouseleave', () => flare?.style.removeProperty('opacity'));
 
-    // PIN
-    e.pin.addEventListener('click', (ev) => {
-      const key = ev.target.closest('.nfl-pin-key');
-      if (key) this._pinType(key.dataset.key);
-    });
-
-    // Tastatur: Escape schließt zuerst den Player; Ziffern für die PIN.
+    // Tastatur: Escape schließt zuerst den Player.
     // capture → vor dem globalen Handler, der sonst zur Übersicht springt.
     window.addEventListener('keydown', (ev) => {
       if (ViewManager.getState() !== 'NFL_FOCUS') return;
       if (ev.key === 'Escape' && e.modal.classList.contains('is-open')) {
         ev.stopPropagation();
         this._closeStream();
-        return;
-      }
-      if (!e.pin.hidden && /^[0-9]$/.test(ev.key)) {
-        ev.stopPropagation();
-        this._pinType(ev.key);
       }
     }, true);
   }
@@ -597,37 +567,5 @@ export class NflModule {
     modal.setAttribute('aria-hidden', 'true');
     quality.replaceChildren();
     document.getElementById('cursor-flare')?.style.removeProperty('opacity');
-  }
-
-  // ------------------------------------------------------------
-  // PIN
-  // ------------------------------------------------------------
-
-  _isUnlocked() {
-    try { return sessionStorage.getItem(PIN_KEY) === '1'; } catch (_) { return false; }
-  }
-
-  _pinType(digit) {
-    if (this.pinEntry.length >= 4) return;
-    this.pinEntry += digit;
-    audio.click();
-
-    const dots = this.el.pinDots.children;
-    dots[this.pinEntry.length - 1]?.classList.add('is-filled');
-    if (this.pinEntry.length < 4) return;
-
-    if (this.pinEntry === PIN) {
-      try { sessionStorage.setItem(PIN_KEY, '1'); } catch (_) {}
-      audio.addChime();
-      setTimeout(() => { this.el.pin.hidden = true; }, 150);
-      return;
-    }
-
-    [...dots].forEach(d => { d.classList.remove('is-filled'); d.classList.add('is-error'); });
-    audio.deleteTick();
-    setTimeout(() => {
-      [...dots].forEach(d => d.classList.remove('is-error'));
-      this.pinEntry = '';
-    }, 700);
   }
 }
