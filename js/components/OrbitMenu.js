@@ -40,6 +40,13 @@ const INTRO = {
 };
 const INTRO_REDUCED = { charge: 250, fly: 420, stagger: 0 };
 
+// Zeitplan der Schließanimation (ms)
+const OUTRO = {
+  fly: 620,       // Flugdauer eines Widgets zurück in die Erde
+  stagger: 35     // Versatz zwischen den Widgets
+};
+const OUTRO_REDUCED = { fly: 300, stagger: 0 };
+
 export class OrbitMenu {
   constructor(rootEl, options = {}) {
     this.root = rootEl;
@@ -78,6 +85,7 @@ export class OrbitMenu {
     this._transitioning = false;
     this._transitionTimer = null;
     this._intro = null;      // { release, fly } während die Widgets rausfliegen
+    this._outro = null;      // { start, fly } während die Widgets zurückfliegen
     this._fxTimers = [];
 
     this._three = null;
@@ -767,16 +775,19 @@ export class OrbitMenu {
         this._earthFx = null;
         return FX_IDLE;
       }
-      const spring = 1 + 0.075 * Math.exp(-r / 230) * Math.cos(r * 0.016);
+      // amp < 1 → schwächerer Stoß ohne Aufladen (Einsammeln der Widgets)
+      const a = fx.amp ?? 1;
+      const from = a < 1 ? 1 : CHARGE_SCALE;
+      const spring = 1 + 0.075 * a * Math.exp(-r / 230) * Math.cos(r * 0.016);
       const attack = easeOutCubic(clamp01(r / 70));
       return {
-        tremble: 0.2 * Math.exp(-r / 170),
-        scale: CHARGE_SCALE + (spring - CHARGE_SCALE) * attack,
-        glow: 0.7 * Math.exp(-r / 450),
-        atmo: 1 + 2.4 * Math.exp(-r / 320),
-        boost: 1 + 0.9 * Math.exp(-r / 380),
-        zoom: 0.55 * Math.exp(-r / 200),
-        spin: 0.9 * Math.exp(-r / 600)
+        tremble: 0.2 * a * Math.exp(-r / 170),
+        scale: from + (spring - from) * attack,
+        glow: 0.7 * a * Math.exp(-r / 450),
+        atmo: 1 + 2.4 * a * Math.exp(-r / 320),
+        boost: 1 + 0.9 * a * Math.exp(-r / 380),
+        zoom: 0.55 * a * Math.exp(-r / 200),
+        spin: 0.9 * a * Math.exp(-r / 600)
       };
     };
 
@@ -941,6 +952,7 @@ export class OrbitMenu {
 
     core.classList.remove('is-charging');
     core.classList.add('is-open');
+    core.title = 'Klicken zum Schließen';
     audio.boom();
 
     if (!reduced) {
@@ -1022,6 +1034,74 @@ export class OrbitMenu {
     this._widgetsDirty = true;
   }
 
+  /** Liegt der Bildschirmpunkt auf der Erdkugel? */
+  _isOnEarth(x, y) {
+    if (!this._core) return false;
+    const r = this._core.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    // Die Kugel füllt ~82 % der Core-Höhe (siehe _earthScreenRadius)
+    return Math.hypot(x - cx, y - cy) <= r.width * 0.41;
+  }
+
+  /* ============================================================
+     SCHLIESSEN: Widgets fliegen zurück in die Erde, die Erde
+     wächst wieder auf volle Größe und fängt sie mit einem
+     kurzen Aufleuchten auf.
+     ============================================================ */
+  collapse() {
+    if (!this._expanded || this._transitioning) return;
+    this._transitioning = true;
+
+    const reduced = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const T = reduced ? OUTRO_REDUCED : OUTRO;
+
+    audio.close();
+    this._spin = { x: 0, y: 0 };
+    this._orbit.classList.add('is-retracting');
+    this._orbit.classList.remove('is-over-earth');
+
+    // Reihenfolge nach Bildschirmwinkel → die Widgets werden als Welle eingesaugt
+    this._items
+      .map(item => {
+        const p = this._projectItem(item);
+        return { item, a: Math.atan2(p.y, p.x) };
+      })
+      .sort((u, v) => u.a - v.a)
+      .forEach(({ item }, rank) => { item.launchDelay = rank * T.stagger; });
+
+    const now = performance.now();
+    this._outro = { start: now, fly: T.fly };
+    this._widgetsDirty = true;
+
+    const total = T.fly + T.stagger * (this._items.length - 1);
+
+    // Die Erde wächst schon während des Rückflugs wieder auf volle Größe
+    this._core.classList.remove('is-open');
+    this._core.title = 'Klicken zum Öffnen';
+
+    // Auffangen: kurzer, schwacher Rückstoß im Erd-Loop
+    if (!reduced) {
+      this._earthFx = { start: now + total - 1, release: now + total, amp: 0.45 };
+    }
+
+    clearTimeout(this._transitionTimer);
+    this._transitionTimer = setTimeout(() => this._finishOutro(), total + 30);
+  }
+
+  _finishOutro() {
+    this._outro = null;
+    this._expanded = false;
+    this._orbit.classList.remove('is-expanded', 'is-retracting');
+    this._items.forEach(item => {
+      item.launchDelay = 0;
+      item.el.classList.remove('is-behind');
+    });
+    this._transitioning = false;
+    this._widgetsDirty = true;
+  }
+
   _bindMouse() {
     this._boundMove = (e) => {
       const nx = (e.clientX / window.innerWidth) * 2 - 1;
@@ -1029,6 +1109,12 @@ export class OrbitMenu {
       this._targetParallaxY = nx * 14;
       this._targetParallaxX = -ny * 10;
       this._widgetsDirty = true;
+
+      if (this._orbit) {
+        const overEarth = this._expanded && !this._transitioning &&
+          this._isOnEarth(e.clientX, e.clientY);
+        this._orbit.classList.toggle('is-over-earth', overEarth);
+      }
     };
 
     this._boundLeave = () => {
@@ -1047,6 +1133,9 @@ export class OrbitMenu {
       if (ViewManager.getState() !== 'HOME') return;
       if (!this._expanded) return;
       if (e.button !== undefined && e.button !== 0) return;
+
+      this._downX = e.clientX;
+      this._downY = e.clientY;
 
       const target = e.target;
       if (target && target.closest && target.closest('.orbit-item')) return;
@@ -1105,7 +1194,22 @@ export class OrbitMenu {
       }
     };
 
+    // Klick auf die geöffnete Erde → Widgets einsammeln. Die Erde selbst
+    // ist dann pointer-events: none, damit Ziehen über ihr weiter dreht –
+    // der Treffer wird deshalb hier per Kreis-Test ermittelt.
+    this._onOrbitClick = (e) => {
+      if (!this._expanded || this._transitioning) return;
+      if (ViewManager.getState() !== 'HOME') return;
+      if (e.target && e.target.closest && e.target.closest('.orbit-item')) return;
+      const moved = Math.hypot(e.clientX - (this._downX ?? e.clientX),
+                               e.clientY - (this._downY ?? e.clientY));
+      if (moved > 6) return;
+      if (!this._isOnEarth(e.clientX, e.clientY)) return;
+      this.collapse();
+    };
+
     orbit.addEventListener('pointerdown', this._onPointerDown);
+    orbit.addEventListener('click', this._onOrbitClick);
     window.addEventListener('pointermove', this._onPointerMove);
     window.addEventListener('pointerup', this._onPointerUp);
     window.addEventListener('pointercancel', this._onPointerUp);
@@ -1214,6 +1318,7 @@ export class OrbitMenu {
       // Wenn nichts dirty und nicht expanded: skip
       const needsUpdate = this._widgetsDirty
                        || this._intro
+                       || this._outro
                        || (!this._paused && this._expanded);
 
       if (!needsUpdate) return;
@@ -1266,6 +1371,20 @@ export class OrbitMenu {
             this._applyItemTransform(el, p, 0.2 + 0.8 * easeOutCubic(k), clamp01(k * 2.5));
             return;
           }
+        }
+
+        // Zurückfliegen: Spiegelbild des Rausfliegens – spiralförmig nach
+        // innen, dabei kleiner und durchsichtig, bis die Erde sie schluckt.
+        if (this._outro) {
+          const k = clamp01((now - this._outro.start - (item.launchDelay || 0)) / this._outro.fly);
+          const e = easeInCubic(k);
+          const p = this._projectItem(item, floatY, floatZ, e * 0.55);
+          const reach = 1 - e;
+          p.x *= reach;
+          p.y *= reach;
+          p.z *= reach;
+          this._applyItemTransform(el, p, 1 - 0.8 * e, 1 - clamp01((k - 0.55) / 0.45));
+          return;
         }
 
         this._applyItemTransform(el, this._projectItem(item, floatY, floatZ));
@@ -1449,6 +1568,7 @@ export class OrbitMenu {
     }
     if (this._boundOnPointerDown && this._orbit) {
       this._orbit.removeEventListener('pointerdown', this._boundOnPointerDown);
+      this._orbit.removeEventListener('click', this._onOrbitClick);
     }
     if (typeof this._unsubscribeView === 'function') {
       this._unsubscribeView();

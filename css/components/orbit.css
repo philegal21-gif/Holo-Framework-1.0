@@ -59,6 +59,17 @@ body:not(.state-home) #orbit-stage {
   cursor: grabbing;
 }
 
+/* Geöffnet: Klick auf die Erde sammelt die Widgets wieder ein */
+.orbit.is-expanded.is-over-earth:not(.is-dragging) {
+  cursor: pointer;
+}
+
+/* Während des Rückflugs nichts mehr anklickbar */
+.orbit.is-retracting,
+.orbit.is-expanded.is-retracting .orbit-item {
+  pointer-events: none;
+}
+
 /* =========================================================
    CLUSTER — preserve-3d & will-change entfernt
    ========================================================= */
@@ -81,9 +92,10 @@ body:not(.state-home) #orbit-stage {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* etwas größer, damit die Kugel inkl. Atmosphäre Luft hat */
-  width: min(520px, 78vw);
-  height: min(520px, 78vw);
+  /* etwas größer als die Kugel, damit die Atmosphäre Luft hat.
+     Geöffnet schrumpft sie zusätzlich um --earth-open-scale. */
+  width: min(354px, 53vw);
+  height: min(354px, 53vw);
   transform: translate(-50%, -50%);
   /* KEIN border-radius / overflow – sonst clippt Chromium/Brave das Canvas */
   border-radius: 0;
@@ -721,8 +733,8 @@ body:not(.state-home) #orbit-stage {
   .orbit { perspective: 1100px; }
 
   .orbit-core {
-    width: min(300px, 78vw);
-    height: min(300px, 78vw);
+    width: min(204px, 53vw);
+    height: min(204px, 53vw);
   }
 
   .orbit-item {
