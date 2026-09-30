@@ -155,22 +155,6 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   });
 
   // =========================================================
-  // FPS COUNTER
-  // =========================================================
-
-  let fc = 0, last = performance.now();
-  (function fps() {
-    fc++;
-    const n = performance.now();
-    if (n - last >= 1000) {
-      document.getElementById('hud-frame').textContent = fc;
-      fc = 0;
-      last = n;
-    }
-    requestAnimationFrame(fps);
-  })();
-
-  // =========================================================
   // START
   // =========================================================
 

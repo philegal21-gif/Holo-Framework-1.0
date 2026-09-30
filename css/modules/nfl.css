@@ -4,9 +4,9 @@
    ========================================================= */
 
 .nfl-root {
-  --nfl-neon: var(--midnight-neon);
-  --nfl-vivid: var(--midnight-vivid);
-  --nfl-deep: var(--midnight);
+  --nfl-neon: var(--accent-light);
+  --nfl-vivid: var(--accent-soft);
+  --nfl-deep: var(--accent);
   --nfl-silver: var(--silver);
   --nfl-white: #f5f5f5;
   --nfl-live: #ff5f6d;
@@ -40,7 +40,7 @@
   touch-action: pan-y;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 229, 191, .25) transparent;
+  scrollbar-color: rgba(92, 160, 171, .25) transparent;
 }
 
 .nfl-app {
@@ -60,12 +60,10 @@
   gap: 4vw;
   padding: 22px 20px;
   border-radius: 20px;
-  background: linear-gradient(135deg, rgba(0, 76, 84, .55), rgba(0, 20, 25, .75));
-  border: 1px solid rgba(0, 229, 191, .22);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, .5),
-    inset 0 1px 0 rgba(255, 255, 255, .08),
-    0 0 40px rgba(0, 76, 84, .25);
+  background: linear-gradient(135deg, rgba(0, 73, 83, .55), rgba(0, 20, 25, .75));
+  border: 1px solid rgba(92, 160, 171, .22);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5),
+    inset 0 1px 0 rgba(255, 255, 255, .08);
   backdrop-filter: blur(24px) saturate(160%);
 }
 
@@ -73,7 +71,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(0, 229, 191, .06), transparent);
+  background: linear-gradient(90deg, transparent, rgba(92, 160, 171, .06), transparent);
   animation: nflShimmer 6s ease-in-out infinite;
   pointer-events: none;
 }
@@ -87,7 +85,7 @@
   position: relative;
   height: 72px;
   width: auto;
-  filter: drop-shadow(0 0 14px rgba(0, 229, 191, .25)) drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
 }
 
 .nfl-header-text { position: relative; text-align: center; }
@@ -97,8 +95,7 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: clamp(26px, 4.5vw, 40px);
   font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
   background: linear-gradient(90deg, var(--nfl-white), var(--nfl-neon));
   -webkit-background-clip: text;
   background-clip: text;
@@ -107,10 +104,9 @@
 
 .nfl-subtitle {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: .32em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--nfl-silver);
 }
 
@@ -138,25 +134,25 @@
   flex: 0 0 auto;
   padding: 7px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(0, 229, 191, .16);
-  background: linear-gradient(145deg, rgba(0, 76, 84, .3), rgba(0, 15, 18, .7));
+  border: 1px solid rgba(92, 160, 171, .16);
+  background: linear-gradient(145deg, rgba(0, 73, 83, .3), rgba(0, 15, 18, .7));
   color: rgba(226, 232, 240, .75);
   font-family: 'Space Grotesk', sans-serif;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: .06em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   cursor: pointer;
   transition: border-color .25s, color .25s, box-shadow .25s, transform .25s var(--nfl-ease);
 }
 
-.nfl-tab:hover { color: var(--nfl-white); border-color: rgba(0, 229, 191, .4); transform: translateY(-1px); }
+.nfl-tab:hover { color: var(--nfl-white); border-color: rgba(92, 160, 171, .4); transform: translateY(-1px); }
 
 .nfl-tab.is-active {
   color: var(--nfl-neon);
-  border-color: rgba(0, 229, 191, .7);
-  background: linear-gradient(145deg, rgba(0, 168, 150, .25), rgba(0, 30, 34, .8));
-  box-shadow: 0 0 18px rgba(0, 229, 191, .22), inset 0 0 10px rgba(0, 229, 191, .08);
+  border-color: rgba(92, 160, 171, .7);
+  background: linear-gradient(145deg, rgba(63, 138, 150, .25), rgba(0, 30, 34, .8));
+  box-shadow: none;
 }
 
 /* ---------- Team-Filter ---------- */
@@ -168,7 +164,7 @@
   overflow-x: auto;
   scrollbar-width: none;
   cursor: grab;
-  border-bottom: 1px solid rgba(0, 229, 191, .12);
+  border-bottom: 1px solid rgba(92, 160, 171, .12);
 }
 
 .nfl-filter::-webkit-scrollbar { display: none; }
@@ -182,20 +178,20 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid rgba(0, 229, 191, .14);
-  background: radial-gradient(circle at 50% 35%, rgba(0, 76, 84, .45), rgba(0, 10, 12, .8));
+  border: 1px solid rgba(92, 160, 171, .14);
+  background: radial-gradient(circle at 50% 35%, rgba(0, 73, 83, .45), rgba(0, 10, 12, .8));
   cursor: pointer;
   opacity: .75;
   transition: opacity .2s, border-color .2s, box-shadow .2s, transform .25s var(--nfl-ease);
 }
 
 .nfl-filter-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-.nfl-filter-btn:hover { opacity: 1; transform: translateY(-2px) scale(1.06); border-color: rgba(0, 229, 191, .4); }
+.nfl-filter-btn:hover { opacity: 1; transform: translateY(-2px) scale(1.06); border-color: rgba(92, 160, 171, .4); }
 
 .nfl-filter-btn.is-active {
   opacity: 1;
   border-color: var(--nfl-neon);
-  box-shadow: 0 0 16px rgba(0, 229, 191, .35), inset 0 0 12px rgba(0, 229, 191, .12);
+  box-shadow: none;
 }
 
 /* ---------- Spielkarten ---------- */
@@ -218,8 +214,8 @@
   overflow: hidden;
   padding: 18px 20px 16px;
   border-radius: 18px;
-  background: linear-gradient(145deg, rgba(0, 76, 84, .35), rgba(0, 15, 18, .72));
-  border: 1px solid rgba(0, 229, 191, .18);
+  background: linear-gradient(145deg, rgba(0, 73, 83, .35), rgba(0, 15, 18, .72));
+  border: 1px solid rgba(92, 160, 171, .18);
   box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
   transition: transform .4s var(--nfl-ease), border-color .4s, box-shadow .4s;
 }
@@ -230,24 +226,24 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(135deg, rgba(0, 229, 191, .08), transparent 50%);
+  background: linear-gradient(135deg, rgba(92, 160, 171, .08), transparent 50%);
   opacity: 0;
   transition: opacity .4s;
 }
 
 .nfl-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(0, 229, 191, .5);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, .45), 0 0 36px rgba(0, 229, 191, .15);
+  border-color: rgba(92, 160, 171, .5);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .45);
 }
 
 .nfl-card:hover::before { opacity: 1; }
 
 /* Top-Spiele: kräftigerer Rahmen und Glanz */
 .nfl-card.is-highlight {
-  border-color: rgba(0, 229, 191, .5);
-  background: linear-gradient(145deg, rgba(0, 110, 110, .42), rgba(0, 20, 24, .78));
-  box-shadow: 0 12px 36px rgba(0, 0, 0, .35), 0 0 28px rgba(0, 229, 191, .18), inset 0 0 30px rgba(0, 229, 191, .06);
+  border-color: rgba(92, 160, 171, .5);
+  background: linear-gradient(145deg, rgba(0, 85, 96, .42), rgba(0, 20, 24, .78));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
 }
 
 .nfl-card.is-highlight::after {
@@ -257,15 +253,15 @@
   right: 14px;
   font-family: 'Font Awesome 6 Free', 'Space Grotesk', sans-serif;
   font-weight: 900;
-  font-size: 9px;
-  letter-spacing: .14em;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
   color: var(--nfl-neon);
   opacity: .8;
 }
 
 .nfl-date {
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(0, 229, 191, .25);
+  border-bottom: 1px solid rgba(92, 160, 171, .25);
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   letter-spacing: .04em;
@@ -292,10 +288,9 @@
   margin: 2px auto 0;
   padding: 3px 10px;
   border-radius: 99px;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .nfl-badge.live {
@@ -306,8 +301,8 @@
 }
 
 .nfl-badge.final {
-  background: rgba(0, 229, 191, .1);
-  border: 1px solid rgba(0, 229, 191, .3);
+  background: rgba(92, 160, 171, .1);
+  border: 1px solid rgba(92, 160, 171, .3);
   color: var(--nfl-neon);
 }
 
@@ -339,16 +334,14 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .nfl-team-role {
   display: block;
   margin-top: 2px;
-  font-size: 9px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
   color: rgba(165, 172, 175, .6);
 }
 
@@ -358,7 +351,7 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 22px;
   font-weight: 300;
-  letter-spacing: .12em;
+  letter-spacing: 0.03em;
   color: var(--nfl-silver);
 }
 
@@ -368,8 +361,8 @@
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: #f1ffff;
-  text-shadow: 0 0 12px rgba(0, 229, 191, .45), 0 0 28px rgba(0, 229, 191, .2);
+  color: #f1f7f8;
+  text-shadow: none;
 }
 
 .nfl-center.is-pending .nfl-score { opacity: .35; text-shadow: none; }
@@ -412,7 +405,7 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.03em;
   cursor: pointer;
   animation: nflStreamPulse 1.8s ease-in-out infinite;
   transition: transform .25s var(--nfl-ease);
@@ -430,8 +423,8 @@
   border-radius: 18px;
   text-align: center;
   color: var(--nfl-silver);
-  background: linear-gradient(145deg, rgba(0, 76, 84, .2), rgba(0, 15, 18, .6));
-  border: 1px solid rgba(0, 229, 191, .12);
+  background: linear-gradient(145deg, rgba(0, 73, 83, .2), rgba(0, 15, 18, .6));
+  border: 1px solid rgba(92, 160, 171, .12);
 }
 
 /* ---------- Nach oben ---------- */
@@ -446,7 +439,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid rgba(0, 229, 191, .35);
+  border: 1px solid rgba(92, 160, 171, .35);
   background: rgba(0, 30, 34, .8);
   color: var(--nfl-neon);
   cursor: pointer;
@@ -458,7 +451,7 @@
 }
 
 .nfl-scrolltop.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
-.nfl-scrolltop:hover { box-shadow: 0 0 20px rgba(0, 229, 191, .35); }
+.nfl-scrolltop:hover { box-shadow: none; }
 
 /* ---------- Stream-Player ---------- */
 
@@ -486,9 +479,9 @@
   width: min(1100px, 96vw);
   padding: 16px;
   border-radius: 20px;
-  background: linear-gradient(160deg, rgba(0, 76, 84, .55), rgba(0, 15, 18, .95));
-  border: 1px solid rgba(0, 229, 191, .35);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, .7), 0 0 60px rgba(0, 168, 150, .2);
+  background: linear-gradient(160deg, rgba(0, 73, 83, .55), rgba(0, 15, 18, .95));
+  border: 1px solid rgba(92, 160, 171, .35);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .7);
 }
 
 .nfl-modal-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -499,8 +492,7 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -510,7 +502,7 @@
   max-width: 45%;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(0, 229, 191, .3);
+  border: 1px solid rgba(92, 160, 171, .3);
   background: rgba(0, 10, 12, .8);
   color: var(--nfl-white);
   font: inherit;
@@ -523,13 +515,13 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px solid rgba(0, 229, 191, .25);
-  background: rgba(0, 76, 84, .3);
+  border: 1px solid rgba(92, 160, 171, .25);
+  background: rgba(0, 73, 83, .3);
   color: var(--nfl-silver);
   transition: color .2s, border-color .2s;
 }
 
-.nfl-modal-close:hover { color: var(--nfl-white); border-color: rgba(0, 229, 191, .6); }
+.nfl-modal-close:hover { color: var(--nfl-white); border-color: rgba(92, 160, 171, .6); }
 
 .nfl-modal-frame {
   width: 100%;

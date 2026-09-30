@@ -28,12 +28,11 @@
 .bvg-station {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 800;
-  text-transform: uppercase;
   font-size: 0.78rem;
   display: flex;
   align-items: center;
   gap: 8px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
 .bvg-pulse {
@@ -161,14 +160,14 @@
   color: #666;
   border-top: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
 }
 
 .bvg-refresh {
   color: var(--bvg-yellow);
   cursor: pointer;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.03em;
   transition: opacity 0.2s ease;
 }
 
@@ -182,7 +181,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   color: #666;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.03em;
 }
 
 /* Mobile */

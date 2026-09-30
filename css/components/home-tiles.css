@@ -61,7 +61,6 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   gap: 4px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--silver-bright);
-  text-transform: uppercase;
   animation: weatherEnter 1.6s ease 0.4s backwards;
 }
 
@@ -74,25 +73,26 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   display: flex;
   align-items: baseline;
   gap: 10px;
-  font-size: 0.72rem;
-  letter-spacing: 0.22em;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .weather-label-icon {
   font-size: 0.8rem;
-  color: var(--midnight-neon);
+  color: var(--accent-light);
 }
 
 .weather-label-temp {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
 .weather-label-condition {
   padding-left: 1.6rem;
-  font-size: 0.56rem;
-  letter-spacing: 0.16em;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
   color: rgba(226, 232, 240, 0.65);
 }
 
@@ -103,7 +103,7 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   width: 160px;
   height: 1px;
   margin-top: 6px;
-  background: linear-gradient(90deg, rgba(0, 229, 191, 0.9), transparent);
+  background: linear-gradient(90deg, rgba(92, 160, 171, 0.9), transparent);
 }
 
 .weather-label-line::before {
@@ -114,8 +114,8 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--midnight-neon);
-  box-shadow: 0 0 8px rgba(0, 229, 191, 0.7);
+  background: var(--accent-light);
+  box-shadow: 0 0 8px rgba(92, 160, 171, 0.7);
 }
 
 /* ---------- Fehler: nur ausblenden statt Fehlertext ---------- */
@@ -153,19 +153,14 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
 
 .home-clock-colon {
   margin: 0 0.05em;
-  color: var(--midnight-neon);
-  animation: clockBlink 2s steps(1) infinite;
-}
-
-@keyframes clockBlink {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.2; }
+  color: var(--accent-light);
+  opacity: 0.6;
 }
 
 .home-clock-date {
   margin-top: 8px;
-  font-size: 0.56rem;
-  letter-spacing: 0.22em;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
   color: rgba(226, 232, 240, 0.65);
 }
 
@@ -192,8 +187,7 @@ body:not(.state-home) .home-clock {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-clock-float,
-  .home-clock-colon { animation: none; }
+  .home-clock-float { animation: none; }
   .weather-label-float,
   .weather-label-body { animation: none; }
 }

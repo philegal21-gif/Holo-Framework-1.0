@@ -70,8 +70,8 @@
   z-index: 1;
 
   box-shadow:
-    0 0 60px 20px rgba(0, 229, 191, 0.14),
-    0 0 120px 40px rgba(0, 168, 150, 0.06);
+    0 0 60px 20px rgba(92, 160, 171, 0.14),
+    0 0 120px 40px rgba(63, 138, 150, 0.06);
 
   animation: bgPing 8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   will-change: transform, opacity;
@@ -112,15 +112,6 @@
 }
 
 /* =========================================================
-   SCANLINES (bleiben — sind schon in main.css, hier nur
-   sicherstellen, dass sie über dem Hintergrund liegen)
-   ========================================================= */
-
-.scanlines {
-  z-index: 2;
-}
-
-/* =========================================================
    MOBILE
    ========================================================= */
 
@@ -134,8 +125,8 @@
 
   #bg-ping {
     box-shadow:
-      0 0 40px 12px rgba(0, 229, 191, 0.12),
-      0 0 80px 24px rgba(0, 168, 150, 0.05);
+      0 0 40px 12px rgba(92, 160, 171, 0.12),
+      0 0 80px 24px rgba(63, 138, 150, 0.05);
   }
 }
 

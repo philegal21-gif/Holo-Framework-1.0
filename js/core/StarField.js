@@ -13,12 +13,12 @@ const COLORS = {
   stars: [
     [255, 255, 255],   // Weiß
     [205, 211, 214],   // --silver-bright
-    [0, 229, 191],     // --midnight-neon
-    [127, 233, 214]    // helles Türkis
+    [92, 160, 171],     // --accent-light
+    [140, 196, 206]    // helles Petrol
   ],
-  line: '0, 229, 191',
-  mouseLine: '0, 229, 191',
-  aura: '0, 229, 191'
+  line: '92, 160, 171',
+  mouseLine: '92, 160, 171',
+  aura: '92, 160, 171'
 };
 
 const CONFIG = {
