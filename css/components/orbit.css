@@ -158,46 +158,75 @@ body:not(.state-home) #orbit-stage {
    PHASE 1 — AUFLADEN
    ========================================================= */
 
-/* Energie-Partikel als kleine Kometen: Kopf innen, Schweif außen */
+/* Goldener Staub: kleine Lichtpunkte, die spiralförmig eingesogen werden */
 .orbit-charge-particle {
-  width: var(--len, 14px);
-  height: 1.5px;
-  margin-top: -0.75px;
-  border-radius: 999px;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg,
-    rgba(230, 255, 248, 1) 0%,
-    rgba(92, 160, 171, 0.6) 40%,
-    rgba(92, 160, 171, 0) 100%);
-  box-shadow: 0 0 6px rgba(92, 160, 171, 0.55);
+  width: var(--size, 3px);
+  height: var(--size, 3px);
+  margin: calc(var(--size, 3px) / -2) 0 0 calc(var(--size, 3px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 244, 214, 1) 0%,
+    rgba(255, 196, 120, 0.85) 55%,
+    rgba(255, 170, 90, 0) 100%);
+  box-shadow: 0 0 8px rgba(255, 190, 110, 0.6);
   z-index: 5;
-  animation: chargeParticle var(--dur, 700ms) cubic-bezier(0.55, 0, 0.9, 0.4) var(--delay, 0ms) forwards;
+  animation: chargeParticle var(--dur, 700ms) cubic-bezier(0.45, 0, 0.75, 0.6) var(--delay, 0ms) forwards;
 }
 
 @keyframes chargeParticle {
-  0%   { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--from)) scaleX(0.5); }
-  30%  { opacity: 0.9; }
-  100% { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--to)) scaleX(1.4); }
+  0%   { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--from)) scale(0.6); }
+  25%  { opacity: 0.95; }
+  100% { opacity: 0;   transform: rotate(calc(var(--angle) + 55deg)) translateX(var(--to)) scale(1.2); }
 }
 
-/* Ringe, die sich auf die Atmosphäre zusammenziehen */
-.orbit-charge-ring {
-  width: var(--ring, 600px);
-  height: var(--ring, 600px);
-  margin: calc(var(--ring, 600px) / -2) 0 0 calc(var(--ring, 600px) / -2);
+/* Strahlenkranz hinter der Erde (z-index -1: unter dem Cluster mit der Erde) */
+.orbit-corona,
+.orbit-corona-out {
+  width: var(--size, 600px);
+  height: var(--size, 600px);
+  margin: calc(var(--size, 600px) / -2) 0 0 calc(var(--size, 600px) / -2);
   border-radius: 50%;
-  border: 1px solid rgba(92, 160, 171, 0.6);
-  box-shadow:
-    0 0 18px rgba(92, 160, 171, 0.22),
-    inset 0 0 18px rgba(92, 160, 171, 0.16);
-  z-index: 5;
-  animation: chargeRing var(--dur, 420ms) cubic-bezier(0.5, 0, 0.75, 0) var(--delay, 0ms) forwards;
+  background:
+    radial-gradient(circle,
+      rgba(255, 214, 150, 0.0) 0%,
+      rgba(255, 214, 150, 0.0) 17%,
+      rgba(255, 200, 130, 0.45) 21%,
+      rgba(255, 170, 100, 0.14) 36%,
+      transparent 58%),
+    /* Zwei Strahlenschichten mit unterschiedlichem Takt → unregelmäßig, nicht wie ein Sonnen-Icon */
+    repeating-conic-gradient(from 7deg,
+      rgba(255, 228, 175, 0) 0deg,
+      rgba(255, 228, 175, 0.38) 1.6deg,
+      rgba(255, 228, 175, 0) 4.2deg,
+      rgba(255, 228, 175, 0) 11.3deg),
+    repeating-conic-gradient(from 0deg,
+      rgba(255, 214, 150, 0) 0deg,
+      rgba(255, 214, 150, 0.26) 3.4deg,
+      rgba(255, 214, 150, 0) 7.5deg,
+      rgba(255, 214, 150, 0) 19.1deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 0%, transparent 15%, #000 23%, #000 30%, transparent 62%);
+  mask-image: radial-gradient(circle, transparent 0%, transparent 15%, #000 23%, #000 30%, transparent 62%);
+  filter: blur(2.5px);
+  mix-blend-mode: screen;
+  z-index: -1;
 }
 
-@keyframes chargeRing {
-  0%   { opacity: 0; transform: scale(1); }
-  35%  { opacity: var(--peak, 0.6); }
-  100% { opacity: 0; transform: scale(var(--end-scale, 0.55)); }
+.orbit-corona {
+  animation: coronaIn var(--dur, 1100ms) cubic-bezier(0.4, 0, 0.3, 1) forwards;
+}
+
+@keyframes coronaIn {
+  0%   { opacity: 0;    transform: scale(0.62) rotate(0deg); }
+  100% { opacity: 0.75; transform: scale(1) rotate(28deg); }
+}
+
+.orbit-corona-out {
+  animation: coronaOut 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes coronaOut {
+  0%   { opacity: 1;   transform: scale(1) rotate(28deg); }
+  100% { opacity: 0;   transform: scale(1.5) rotate(46deg); }
 }
 
 /* =========================================================
@@ -210,93 +239,59 @@ body:not(.state-home) #orbit-stage {
   margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
   border-radius: 50%;
   background: radial-gradient(circle,
-    rgba(226, 232, 240, 0.4) 0%,
-    rgba(140, 196, 206, 0.28) 18%,
-    rgba(92, 160, 171, 0.14) 42%,
-    rgba(63, 138, 150, 0.04) 62%,
+    rgba(255, 246, 228, 0.55) 0%,
+    rgba(255, 214, 160, 0.34) 20%,
+    rgba(255, 180, 110, 0.14) 44%,
+    rgba(255, 160, 90, 0.04) 62%,
     transparent 72%);
   mix-blend-mode: screen;
   z-index: 8;
-  animation: releaseFlash 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: releaseFlash 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes releaseFlash {
   0%   { opacity: 0; transform: scale(0.55); }
-  12%  { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.7); }
+  14%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.8); }
 }
 
-.orbit-shockwave {
-  width: var(--size, 400px);
-  height: var(--size, 400px);
-  margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
+/* Horizontaler Linsenstreifen (anamorph) */
+.orbit-streak {
+  width: var(--size, 900px);
+  height: 5px;
+  margin: -2.5px 0 0 calc(var(--size, 900px) / -2);
   border-radius: 50%;
-  border: 1px solid rgba(140, 196, 206, 0.6);
+  background: radial-gradient(ellipse at center,
+    rgba(255, 248, 232, 0.95) 0%,
+    rgba(255, 214, 160, 0.5) 25%,
+    rgba(255, 180, 110, 0.12) 60%,
+    transparent 100%);
+  filter: blur(1.2px);
+  mix-blend-mode: screen;
   z-index: 8;
-  animation: shockwave var(--dur, 950ms) cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) forwards;
+  animation: streak 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes shockwave {
-  0%   { opacity: 0; transform: scale(0.92); }
-  8%   { opacity: var(--peak, 0.9); }
-  100% { opacity: 0; transform: scale(var(--end-scale, 3)); }
-}
-
-/* Funken: Kopf außen, Schweif innen */
-.orbit-spark-out {
-  width: var(--len, 18px);
-  height: 1.5px;
-  margin-top: -0.75px;
-  border-radius: 999px;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg,
-    rgba(92, 160, 171, 0) 0%,
-    rgba(92, 160, 171, 0.7) 60%,
-    rgba(234, 255, 248, 1) 100%);
-  z-index: 8;
-  animation: sparkOut var(--dur, 700ms) cubic-bezier(0.1, 0.9, 0.3, 1) var(--delay, 0ms) forwards;
-}
-
-@keyframes sparkOut {
-  0%   { opacity: 0; transform: rotate(var(--angle)) translateX(var(--from)) scaleX(0.4); }
-  15%  { opacity: 1; }
-  100% { opacity: 0; transform: rotate(var(--angle)) translateX(var(--to)) scaleX(1); }
+@keyframes streak {
+  0%   { opacity: 0;   transform: scaleX(0.05) scaleY(1.6); }
+  12%  { opacity: 1; }
+  100% { opacity: 0;   transform: scaleX(1) scaleY(0.4); }
 }
 
 /* =========================================================
    PHASE 3 — WIDGETS FLIEGEN RAUS
-   Position/Größe/Deckkraft steuert der RAF-Loop; CSS liefert
-   Leuchtspur und das kurze Aufglühen beim Start.
+   Position/Größe/Deckkraft steuert der RAF-Loop. CSS lässt die Icons
+   wie Bokeh-Lichter unscharf starten und unterwegs scharf stellen.
    ========================================================= */
 
-.orbit-ray {
-  width: var(--len, 300px);
-  height: 1.5px;
-  margin-top: -0.75px;
-  border-radius: 999px;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg,
-    rgba(92, 160, 171, 0) 0%,
-    rgba(92, 160, 171, 0) 30%,
-    rgba(92, 160, 171, 0.45) 80%,
-    rgba(220, 255, 245, 0.9) 100%);
-  z-index: 5;
-  animation: rayTrace var(--dur, 700ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
-}
-
-@keyframes rayTrace {
-  0%   { opacity: 0;    transform: rotate(var(--angle)) scaleX(0); }
-  20%  { opacity: 0.85; }
-  100% { opacity: 0;    transform: rotate(var(--angle)) scaleX(1); }
-}
-
 .orbit-item.is-bursting {
-  animation: widgetIgnite 700ms cubic-bezier(0.16, 1, 0.3, 1) var(--burst-delay, 0ms) both;
+  animation: widgetFocus 1000ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--burst-delay, 0ms) both;
 }
 
-@keyframes widgetIgnite {
-  0%   { filter: brightness(1.6); }
-  100% { filter: brightness(1) saturate(1); }
+@keyframes widgetFocus {
+  0%   { filter: blur(16px) brightness(1.8); }
+  55%  { filter: blur(4px) brightness(1.25); }
+  100% { filter: blur(0) brightness(1); }
 }
 
 /* =========================================================
