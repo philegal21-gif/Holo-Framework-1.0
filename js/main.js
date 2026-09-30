@@ -3,6 +3,7 @@ import { ViewManager } from './core/ViewManager.js';
 import { ModuleRegistry } from './core/ModuleRegistry.js';
 import { MODULES } from './modules/index.js';
 import { OrbitMenu } from './components/OrbitMenu.js';
+import { BootSequence } from './components/BootSequence.js';
 import { HomeTiles } from './components/HomeTiles.js';
 import { StarField } from './core/StarField.js';
 import { BackgroundGlow } from './core/BackgroundGlow.js';
@@ -99,7 +100,8 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
 
   const orbitStage = document.getElementById('orbit-stage');
 
-  new OrbitMenu(orbitStage, {
+  const orbit = new OrbitMenu(orbitStage, {
+    startHidden: true,
     isOpenable: (project) => ModuleRegistry.has(project.target),
     onOpenProject: (project) => {
       if (ModuleRegistry.open(project.target)) audio.open();
@@ -111,6 +113,8 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   // =========================================================
 
   new HomeTiles();
+
+  new BootSequence(orbit);
 
   // =========================================================
   // BACK-BUTTON
