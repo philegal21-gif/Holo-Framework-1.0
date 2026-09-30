@@ -284,19 +284,29 @@ export class OrbitMenu {
     this._orientation = orthonormalize(Mat3.multiply(r, this._orientation));
   }
 
-  _applyItemTransform(el, p, scaleMul = 1, fade = 1) {
+  _applyItemTransform(el, p, scaleMul = 1, fade = 1, fx = null) {
     const depthNorm = Math.max(-1, Math.min(1, p.z / this._radiusMax));
     const scale = (0.7 + (depthNorm + 1) * 0.5 * 0.3) * scaleMul;
     const opacity = (0.35 + (depthNorm + 1) * 0.5 * 0.65) * fade;
 
+    // Magnet: Verschiebung weg von der Maus (Dock-Effekt)
+    const ox = fx ? fx.dx : 0;
+    const oy = fx ? fx.dy : 0;
+
     el.style.transform =
-      `translate3d(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px, ${p.z.toFixed(2)}px) ` +
+      `translate3d(${(p.x + ox).toFixed(2)}px, ${(p.y + oy).toFixed(2)}px, ${p.z.toFixed(2)}px) ` +
       `scale(${scale.toFixed(3)})`;
     // Als CSS-Variable, damit Placeholder/Empty-Dimmung im CSS weiter greift
     el.style.setProperty('--depth-opacity', opacity.toFixed(3));
     // Tiefensortierung: Die Erde hat z-index 1000 (= Tiefe 0). Vordere Widgets
     // liegen darüber, hintere darunter und werden von ihr verdeckt.
-    el.style.zIndex = String(Math.round(1000 + p.z));
+    el.style.zIndex = String(Math.round(1000 + p.z + (fx ? fx.mag * 40 : 0)));
+
+    // Glanzlicht wandert zur Maus (Prozent innerhalb der Kugel)
+    if (fx) {
+      el.style.setProperty('--hx', fx.hx.toFixed(1));
+      el.style.setProperty('--hy', fx.hy.toFixed(1));
+    }
 
     // Rückseite: weich abdunkeln, sobald das Widget hinter die Erde wandert,
     // und dort nicht mehr anwählbar machen.
@@ -304,6 +314,56 @@ export class OrbitMenu {
     const behind = smoothstep(0.05, -0.45, p.z / R);
     el.style.setProperty('--behind', behind.toFixed(3));
     el.classList.toggle('is-behind', p.z < -R * 0.1);
+
+    // Tiefenschärfe: je weiter hinten, desto unschärfer (in 0,5-px-Schritten)
+    el.style.setProperty('--dof-px', (Math.round(behind * 3.2 * 2) / 2).toFixed(1) + 'px');
+  }
+
+  /**
+   * Magnet-Effekt: Kugel nahe der Maus wächst und tritt nach vorn, die anderen
+   * weichen leicht aus; das Glanzlicht blickt zur Maus. Werte werden weich
+   * nachgeführt (item.mag / hx / hy).
+   */
+  _magnetFor(item, p, center) {
+    const m = this._mouse;
+    const persp = 1100;
+    const f = persp / Math.max(200, persp - p.z);
+    const sx = center.x + p.x * f;
+    const sy = center.y + p.y * f;
+
+    const usable = m && m.active && !this._isDragging && this._canMagnet(p);
+    const dxm = usable ? m.x - sx : 0;
+    const dym = usable ? m.y - sy : 0;
+    const d = Math.hypot(dxm, dym);
+
+    const targetMag = usable ? Math.exp(-Math.pow(d / 120, 2)) : 0;
+    const targetHx = usable ? 50 + Math.max(-1, Math.min(1, dxm / 90)) * 24 : 34;
+    const targetHy = usable ? 50 + Math.max(-1, Math.min(1, dym / 90)) * 24 : 26;
+
+    item.mag = (item.mag ?? 0) + (targetMag - (item.mag ?? 0)) * 0.2;
+    item.hx = (item.hx ?? 34) + (targetHx - (item.hx ?? 34)) * 0.25;
+    item.hy = (item.hy ?? 26) + (targetHy - (item.hy ?? 26)) * 0.25;
+
+    // Andere weichen aus: Richtung weg von der Maus, nahe Kugel bleibt stehen
+    const push = usable && d > 1
+      ? 14 * Math.exp(-Math.pow(d / 190, 2)) * (1 - item.mag)
+      : 0;
+    const dx = push ? (-dxm / d) * push : 0;
+    const dy = push ? (-dym / d) * push : 0;
+
+    // Solange etwas nachläuft, weiter rendern
+    if (Math.abs(targetMag - item.mag) > 0.003 ||
+        Math.abs(targetHx - item.hx) > 0.2 ||
+        Math.abs(targetHy - item.hy) > 0.2) {
+      this._widgetsDirty = true;
+    }
+    return { mag: item.mag, hx: item.hx, hy: item.hy, dx, dy };
+  }
+
+  /** Nur Kugeln vor der Erde reagieren auf die Maus. */
+  _canMagnet(p) {
+    const R = (this._radiusMin + this._radiusMax) / 2;
+    return p.z > -R * 0.1;
   }
 
   /* ============================================================
@@ -1424,7 +1484,11 @@ export class OrbitMenu {
   }
 
   _bindMouse() {
+    this._mouse = { x: 0, y: 0, active: false };
     this._boundMove = (e) => {
+      this._mouse.x = e.clientX;
+      this._mouse.y = e.clientY;
+      this._mouse.active = true;
       const nx = (e.clientX / window.innerWidth) * 2 - 1;
       const ny = (e.clientY / window.innerHeight) * 2 - 1;
       this._targetParallaxY = nx * 14;
@@ -1441,6 +1505,8 @@ export class OrbitMenu {
     this._boundLeave = () => {
       this._targetParallaxX = 0;
       this._targetParallaxY = 0;
+      this._mouse.active = false;
+      this._widgetsDirty = true;
     };
 
     window.addEventListener('mousemove', this._boundMove);
@@ -1646,6 +1712,12 @@ export class OrbitMenu {
 
       this._widgetsDirty = false;
 
+      // Bildschirmmitte des Orbits (für den Magnet-Effekt)
+      const cr = this._core ? this._core.getBoundingClientRect() : null;
+      const center = cr
+        ? { x: cr.left + cr.width / 2, y: cr.top + cr.height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
       this._items.forEach((item) => {
         if (item.warping) {
           const el = item.el;
@@ -1708,7 +1780,9 @@ export class OrbitMenu {
           return;
         }
 
-        this._applyItemTransform(el, this._projectItem(item, floatY, floatZ));
+        const pn = this._projectItem(item, floatY, floatZ);
+        const fxm = this._magnetFor(item, pn, center);
+        this._applyItemTransform(el, pn, 1 + fxm.mag * 0.26, 1, fxm);
       });
     };
 
