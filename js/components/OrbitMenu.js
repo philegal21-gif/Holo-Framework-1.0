@@ -81,6 +81,11 @@ export class OrbitMenu {
     this._zoomResetting = false;
     this._zoomWaiters = [];
 
+    // Während des Ein-/Ausflugs in ein Modul bleibt alles stehen (Drehung, Schweben,
+    // Parallaxe, Magnet), damit die Scheibe beim Zurückkommen an derselben Stelle liegt
+    this._rotFrozen = false;
+    this._floatT = 0;
+
     this._items = [];
     this._toast = null;
     this._toastTimer = null;
@@ -325,6 +330,9 @@ export class OrbitMenu {
    * nachgeführt (item.mag / hx / hy).
    */
   _magnetFor(item, p, center) {
+    // Eingefroren: Zustand von vorhin behalten, nichts nachführen
+    if (this._rotFrozen && item._fxLast) return item._fxLast;
+
     const m = this._mouse;
     const persp = 1100;
     const f = persp / Math.max(200, persp - p.z);
@@ -357,7 +365,8 @@ export class OrbitMenu {
         Math.abs(targetHy - item.hy) > 0.2) {
       this._widgetsDirty = true;
     }
-    return { mag: item.mag, hx: item.hx, hy: item.hy, dx, dy };
+    item._fxLast = { mag: item.mag, hx: item.hx, hy: item.hy, dx, dy };
+    return item._fxLast;
   }
 
   /** Nur Kugeln vor der Erde reagieren auf die Maus. */
@@ -1125,8 +1134,10 @@ export class OrbitMenu {
       glowMat.opacity = 0.3 + fx.glow;
       baseMat.opacity = Math.min(1, 0.7 + fx.glow * 0.4);
 
-      earthGroup.rotation.y += dt * (0.12 + fx.spin);
-      cloudMesh.rotation.y += dt * 0.006;   // Wolken driften langsam gegen die Erde
+      if (!this._rotFrozen) {
+        earthGroup.rotation.y += dt * (0.12 + fx.spin);
+        cloudMesh.rotation.y += dt * 0.006;   // Wolken driften langsam gegen die Erde
+      }
 
       // Sonnenstand nur minütlich neu berechnen
       if (now - lastSunUpdate > 60000) {
@@ -1668,13 +1679,14 @@ export class OrbitMenu {
       if (now - this._lastWidgetFrame < this._widgetFrameInterval - 2) return;
       this._lastWidgetFrame = now;
 
-      const t = (now - start) / 1000;
       const dt = Math.min(50, now - lastNow);
       lastNow = now;
+      if (!this._rotFrozen) this._floatT += dt / 1000;
+      const t = this._floatT;
 
       const isHome = ViewManager.getState() === 'HOME';
 
-      if (isHome && this._expanded && !this._transitioning) {
+      if (isHome && this._expanded && !this._transitioning && !this._rotFrozen) {
         if (!this._isDragging) {
           if (Math.hypot(this._spin.x, this._spin.y) > 0.00001) {
             // Schwung nach dem Loslassen, klingt exponentiell aus
@@ -1697,7 +1709,7 @@ export class OrbitMenu {
       // Parallax nur interpolieren, wenn wir uns bewegen
       const pxDelta = Math.abs(this._targetParallaxX - this._currentParallaxX);
       const pyDelta = Math.abs(this._targetParallaxY - this._currentParallaxY);
-      if (pxDelta > 0.01 || pyDelta > 0.01) {
+      if (!this._rotFrozen && (pxDelta > 0.01 || pyDelta > 0.01)) {
         this._currentParallaxX += (this._targetParallaxX - this._currentParallaxX) * 0.06;
         this._currentParallaxY += (this._targetParallaxY - this._currentParallaxY) * 0.06;
         this._widgetsDirty = true;
@@ -1855,6 +1867,8 @@ export class OrbitMenu {
 
     clearTimeout(this._diveTimer);
     this._setDiveVars(d);
+    this._rotFrozen = true;
+    this._spin = { x: 0, y: 0 };
     document.body.classList.remove('is-diving-out');
     document.body.classList.add('is-diving-in');
 
@@ -1876,7 +1890,10 @@ export class OrbitMenu {
   _diveBack() {
     const d = this._dive;
     this._dive = null;
-    if (!d) return;
+    if (!d) {
+      this._rotFrozen = false;
+      return;
+    }
 
     clearTimeout(this._diveTimer);
     this._setDiveVars(d);
@@ -1887,6 +1904,8 @@ export class OrbitMenu {
 
     this._diveTimer = setTimeout(() => {
       b.classList.remove('is-diving-out');
+      this._rotFrozen = false;   // Orbit und Erde laufen erst jetzt wieder weiter
+      this._widgetsDirty = true;
       if (d.slot) {
         // Verlassenes Modul bleibt noch kurz unsichtbar, bis seine Ausblend-Transition durch ist
         d.slot.style.visibility = 'hidden';
