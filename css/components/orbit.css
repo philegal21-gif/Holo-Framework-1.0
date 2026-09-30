@@ -94,8 +94,8 @@ body:not(.state-home) #orbit-stage {
   left: 50%;
   /* etwas größer als die Kugel, damit die Atmosphäre Luft hat.
      Geöffnet schrumpft sie zusätzlich um --earth-open-scale. */
-  width: min(354px, 53vw);
-  height: min(354px, 53vw);
+  width: calc(min(354px, 53vw) * var(--earth-zoom, 1));
+  height: calc(min(354px, 53vw) * var(--earth-zoom, 1));
   transform: translate(-50%, -50%);
   /* KEIN border-radius / overflow – sonst clippt Chromium/Brave das Canvas */
   border-radius: 0;
@@ -707,8 +707,8 @@ body:not(.state-home) #orbit-stage {
   .orbit { perspective: 1100px; }
 
   .orbit-core {
-    width: min(204px, 53vw);
-    height: min(204px, 53vw);
+    width: calc(min(204px, 53vw) * var(--earth-zoom, 1));
+    height: calc(min(204px, 53vw) * var(--earth-zoom, 1));
   }
 
   .orbit-item {

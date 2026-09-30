@@ -53,6 +53,10 @@ const OUTRO_REDUCED = { fly: 150, stagger: 0 };
 // Neigung der Erdachse zur Kamera (rad): Norden kippt nach vorn, Europa rückt ins Bild
 const EARTH_TILT = 0.6;
 
+// Zoom der Erde (Mausrad, Pinch, +/-): Faktor auf die Grundgröße
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 2.6;
+
 // Aufbau der Erde beim Start (ms): Linien ziehen sich, Land blendet ein
 const BOOT_EARTH_MS = 2400;
 
@@ -67,6 +71,16 @@ export class OrbitMenu {
     // Startsequenz: Erde bleibt leer, bis playStartup() sie aufbaut
     this._bootHold = !!options.startHidden && !reducedMotion;
     this._bootStart = null;
+
+    // Zoom: _zoom = aktueller (animierter) Wert, _zoomBase = Größe, in der das
+    // Canvas zuletzt scharf gerendert wurde. Dazwischen skaliert CSS (flüssig),
+    // nach kurzer Ruhe wird die Auflösung nachgezogen (_commitZoom).
+    this._zoom = 1;
+    this._zoomTarget = 1;
+    this._zoomBase = 1;
+    this._zoomIdleAt = 0;
+    this._zoomResetting = false;
+    this._zoomWaiters = [];
 
     this._items = [];
     this._toast = null;
@@ -117,6 +131,7 @@ export class OrbitMenu {
     this._build();
     this._bindMouse();
     this._bindDrag();
+    this._bindZoom();
     this._bindResize();
     this._bindViewChanges();
     this._startRaf();
@@ -152,6 +167,7 @@ export class OrbitMenu {
 
     const earth = document.createElement('div');
     earth.className = 'orbit-earth';
+    this._earthEl = earth;
     core.appendChild(earth);
     cluster.appendChild(core);
 
@@ -960,7 +976,8 @@ export class OrbitMenu {
       this._earthRafId = requestAnimationFrame(tick);
 
       // 2 ms Toleranz, sonst werden durch RAF-Jitter Frames verworfen
-      const interval = this._earthFx ? 1000 / 60 : 1000 / 30;
+      const zooming = Math.abs(this._zoomTarget - this._zoom) > 0.0005;
+      const interval = (this._earthFx || zooming) ? 1000 / 60 : 1000 / 30;
       if (now - lastEarthFrame < interval - 2) return;
       lastEarthFrame = now;
 
@@ -973,6 +990,16 @@ export class OrbitMenu {
       const t = (now - start) / 1000;
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
+
+      // Zoom: weich auf den Zielwert, danach Auflösung nachziehen
+      if (zooming) {
+        this._zoom += (this._zoomTarget - this._zoom) * (1 - Math.exp(-dt * 10));
+        if (Math.abs(this._zoomTarget - this._zoom) < 0.0005) this._zoom = this._zoomTarget;
+        this._earthEl.style.transform = `scale(${(this._zoom / this._zoomBase).toFixed(4)})`;
+        this._zoomIdleAt = now;
+      } else if (this._zoom !== this._zoomBase && now - this._zoomIdleAt > 200) {
+        this._commitZoom();
+      }
 
       const fx = computeFx(now);
 
@@ -1041,6 +1068,18 @@ export class OrbitMenu {
      ============================================================ */
   expand() {
     if (this._expanded || this._transitioning) return;
+
+    // Gezoomte Erde erst auf Normalgröße, dann laden (Widgets kreisen auf festem Radius)
+    if (Math.abs(this._zoom - 1) > 1e-3 || this._zoomBase !== 1) {
+      if (this._zoomResetting) return;
+      this._zoomResetting = true;
+      this._resetZoom().then(() => {
+        this._zoomResetting = false;
+        this.expand();
+      });
+      return;
+    }
+
     this._transitioning = true;
 
     const reduced = !!(window.matchMedia &&
@@ -1087,6 +1126,75 @@ export class OrbitMenu {
   _bootValue(now) {
     if (this._bootStart === null) return this._bootHold ? 0 : 1;
     return clamp01((now - this._bootStart) / BOOT_EARTH_MS);
+  }
+
+  /* ============================================================
+     ZOOM – Mausrad, Pinch (Touch) und +/−/0. Nur auf HOME und solange
+     der Orbit eingeklappt ist.
+     ============================================================ */
+  _canZoom() {
+    return ViewManager.getState() === 'HOME' && !this._expanded &&
+      !this._transitioning && !this._zoomResetting;
+  }
+
+  _setZoomTarget(z) {
+    this._zoomTarget = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  }
+
+  /** Canvas in der aktuellen Zoomstufe neu auflösen (scharf statt hochskaliert). */
+  _commitZoom() {
+    this._zoomBase = this._zoom;
+    this._core.style.setProperty('--earth-zoom', this._zoom.toFixed(4));
+    this._earthEl.style.transform = '';
+    if (this._earthResize) this._earthResize();
+    if (this._zoom === 1) this._zoomWaiters.splice(0).forEach((fn) => fn());
+  }
+
+  _resetZoom() {
+    return new Promise((resolve) => {
+      if (this._zoom === 1 && this._zoomBase === 1) { resolve(); return; }
+      this._zoomTarget = 1;
+      this._zoomWaiters.push(resolve);
+    });
+  }
+
+  _bindZoom() {
+    this._onWheelZoom = (e) => {
+      if (!this._canZoom()) return;
+      e.preventDefault();
+      // Trackpad-Pinch kommt als wheel mit ctrlKey und kleinen Deltas
+      const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0008));
+      this._setZoomTarget(this._zoomTarget * k);
+    };
+    window.addEventListener('wheel', this._onWheelZoom, { passive: false });
+
+    let pinch = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    this._onPinchStart = (e) => {
+      if (e.touches.length === 2 && this._canZoom()) {
+        pinch = { d0: dist(e.touches), z0: this._zoomTarget };
+      }
+    };
+    this._onPinchMove = (e) => {
+      if (!pinch || e.touches.length !== 2 || !this._canZoom()) return;
+      e.preventDefault();
+      this._setZoomTarget(pinch.z0 * dist(e.touches) / pinch.d0);
+    };
+    this._onPinchEnd = (e) => { if (e.touches.length < 2) pinch = null; };
+    window.addEventListener('touchstart', this._onPinchStart, { passive: true });
+    window.addEventListener('touchmove', this._onPinchMove, { passive: false });
+    window.addEventListener('touchend', this._onPinchEnd, { passive: true });
+    window.addEventListener('touchcancel', this._onPinchEnd, { passive: true });
+
+    this._onKeyZoom = (e) => {
+      if (!this._canZoom() || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === '+' || e.key === '=') this._setZoomTarget(this._zoomTarget * 1.2);
+      else if (e.key === '-') this._setZoomTarget(this._zoomTarget / 1.2);
+      else if (e.key === '0') this._setZoomTarget(1);
+    };
+    window.addEventListener('keydown', this._onKeyZoom);
   }
 
   _later(fn, ms) {
@@ -1756,6 +1864,14 @@ export class OrbitMenu {
       this._orbit.removeEventListener('pointerdown', this._boundOnPointerDown);
       this._orbit.removeEventListener('click', this._onOrbitClick);
     }
+    if (this._onWheelZoom) window.removeEventListener('wheel', this._onWheelZoom);
+    if (this._onPinchStart) {
+      window.removeEventListener('touchstart', this._onPinchStart);
+      window.removeEventListener('touchmove', this._onPinchMove);
+      window.removeEventListener('touchend', this._onPinchEnd);
+      window.removeEventListener('touchcancel', this._onPinchEnd);
+    }
+    if (this._onKeyZoom) window.removeEventListener('keydown', this._onKeyZoom);
     if (typeof this._unsubscribeLocation === 'function') this._unsubscribeLocation();
     if (typeof this._unsubscribeView === 'function') {
       this._unsubscribeView();
