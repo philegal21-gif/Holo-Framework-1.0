@@ -362,31 +362,13 @@ body:not(.state-home) #orbit-stage {
   border: none;
   border-radius: 50%;
 
-  /* Glas-Perle: Glanzlicht (folgt der Maus), Schimmer oben, Streulicht von
-     unten, leicht getönter Glaskörper. Farbton pro App über --tint. */
-  --tint: 92, 160, 171;
-  background:
-    radial-gradient(circle at calc(var(--hx, 34) * 1%) calc(var(--hy, 26) * 1%),
-      rgba(255, 255, 255, 0.78) 0%,
-      rgba(255, 255, 255, 0.30) 7%,
-      rgba(255, 255, 255, 0) 22%),
-    radial-gradient(ellipse 70% 38% at 50% 14%,
-      rgba(255, 255, 255, 0.22),
-      transparent 70%),
-    radial-gradient(circle at 50% 118%,
-      rgba(var(--tint), 0.55) 0%,
-      rgba(var(--tint), 0.18) 45%,
-      transparent 70%),
-    radial-gradient(circle at 50% 38%,
-      rgba(var(--tint), 0.16) 0%,
-      rgba(var(--tint), 0.30) 62%,
-      rgba(8, 16, 22, 0.78) 100%);
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 -14px 24px rgba(var(--tint), 0.22),
-    inset 0 10px 18px rgba(255, 255, 255, 0.09),
-    0 12px 28px rgba(0, 0, 0, 0.45);
+  /* Mini-Planet: keine eigene Fläche, die Oberfläche zeichnet .orbit-planet.
+     Licht kommt von oben links (--lx/--ly), der Farbton des Randlichts je App über --rim. */
+  --lx: -0.62;
+  --ly: -0.5;
+  --lz01: 0.62;
+  background: none;
+  box-shadow: none;
 
   color: var(--silver-pure);
   font-family: 'Space Grotesk', sans-serif;
@@ -406,15 +388,98 @@ body:not(.state-home) #orbit-stage {
     background 0.4s ease;
 }
 
-/* Farbton je App (gedämpft) */
-.orbit-item[data-project-id="carousel"]  { --tint: 92, 160, 171; }
-.orbit-item[data-project-id="sphere"]    { --tint: 104, 148, 224; }
-.orbit-item[data-project-id="nfl"]       { --tint: 96, 192, 146; }
-.orbit-item[data-project-id="watchtime"] { --tint: 226, 124, 104; }
-.orbit-item[data-project-id="favorites"] { --tint: 232, 192, 96; }
-.orbit-item[data-project-id="neural"]    { --tint: 172, 136, 224; }
-.orbit-item[data-project-id="notes"]     { --tint: 206, 200, 152; }
-.orbit-item[data-project-id="add"]       { --tint: 150, 162, 168; }
+/* =========================================================
+   MINI-PLANETEN
+   Oberfläche = prozedurale Textur (--tex, siehe planets.js), die langsam
+   durch die Kugel läuft; darüber Terminator und Randabdunklung.
+   ========================================================= */
+
+.orbit-planet-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: scale(var(--ps, 1));
+  transition: filter 0.4s ease;
+}
+
+.orbit-planet {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--base, #456);
+  background-image: var(--tex, none);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: planetSpin var(--spin, 100s) linear infinite;
+  /* Atmosphäre: Randlicht auf der beleuchteten Seite */
+  box-shadow:
+    calc(var(--lx, -0.6) * 3px) calc(var(--ly, -0.5) * 3px) 10px -1px rgba(var(--rim, 160, 200, 255), 0.5),
+    0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes planetSpin {
+  from { background-position-x: 0; }
+  to   { background-position-x: -200%; }
+}
+
+/* Schatten der abgewandten Seite + Randabdunklung (wirkt kugelig) */
+.orbit-planet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 125% 125% at calc(50% + var(--lx, -0.6) * 42%) calc(50% + var(--ly, -0.5) * 42%),
+      transparent 0%,
+      transparent 34%,
+      rgba(0, 5, 14, 0.58) 62%,
+      rgba(0, 5, 14, 0.94) 92%),
+    radial-gradient(circle at 50% 50%,
+      transparent 52%,
+      rgba(0, 0, 0, 0.4) 100%),
+    rgba(0, 4, 12, calc(0.06 + (1 - var(--lz01, 0.6)) * 0.3));
+}
+
+/* weiches Glanzlicht auf der beleuchteten Seite */
+.orbit-planet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at calc(50% + var(--lx, -0.6) * 30%) calc(50% + var(--ly, -0.5) * 30%),
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.06) 22%,
+    transparent 40%);
+  pointer-events: none;
+}
+
+/* Ring (nur Favoriten): hintere Hälfte unter, vordere über dem Planeten */
+.orbit-ring {
+  position: absolute;
+  left: -38%;
+  right: -38%;
+  top: 50%;
+  height: 34%;
+  margin-top: -17%;
+  border-radius: 50%;
+  border: 3px solid rgba(238, 214, 160, 0.75);
+  box-shadow: 0 0 0 1.5px rgba(150, 110, 50, 0.4), inset 0 0 0 2px rgba(120, 90, 40, 0.3);
+  transform: rotate(-18deg);
+}
+
+.orbit-ring-back {
+  clip-path: inset(0 0 50% 0);
+  z-index: 0;
+}
+
+.orbit-ring-front {
+  clip-path: inset(50% 0 0 0);
+  z-index: 2;
+}
+
+.orbit-planet-wrap { z-index: 1; }
 
 /* Tiefenschärfe: hintere Kugeln werden unscharf (--dof-px setzt das JS) */
 .orbit.is-expanded .orbit-item {
@@ -481,9 +546,11 @@ body:not(.state-home) #orbit-stage {
 }
 
 .orbit-item i {
-  font-size: 22px;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  position: relative;
+  z-index: 3;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
   transition: color 0.4s ease, transform 0.4s ease;
 }
 
@@ -500,17 +567,13 @@ body:not(.state-home) #orbit-stage {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
+  z-index: 4;
   transition: opacity 0.25s ease;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
 }
 
-.orbit-item:hover {
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
-    inset 0 -14px 24px rgba(var(--tint), 0.34),
-    inset 0 10px 18px rgba(255, 255, 255, 0.14),
-    0 14px 34px rgba(0, 0, 0, 0.5),
-    0 0 32px rgba(var(--tint), 0.28);
+.orbit-item:hover .orbit-planet-wrap {
+  filter: brightness(1.18) saturate(1.1);
 }
 
 .orbit-item:hover i {
@@ -522,9 +585,7 @@ body:not(.state-home) #orbit-stage {
   opacity: 1;
 }
 
-.orbit-item[data-target="placeholder"] {
-  --tint: 120, 140, 150;
-}
+
 
 .orbit.is-expanded .orbit-item[data-target="placeholder"] {
   opacity: calc(var(--depth-opacity, 1) * 0.75);
@@ -538,9 +599,15 @@ body:not(.state-home) #orbit-stage {
   opacity: var(--depth-opacity, 1);
 }
 
-.orbit-item[data-target="empty"] {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+.orbit-item[data-target="empty"] .orbit-planet {
+  background: none;
+  animation: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.orbit-item[data-target="empty"] .orbit-planet::after,
+.orbit-item[data-target="empty"] .orbit-planet::before {
+  display: none;
 }
 
 .orbit.is-expanded .orbit-item[data-target="empty"] {
@@ -551,8 +618,8 @@ body:not(.state-home) #orbit-stage {
   opacity: calc(var(--depth-opacity, 1) * 0.9);
 }
 
-.orbit-item[data-target="empty"]:hover {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+.orbit-item[data-target="empty"]:hover .orbit-planet {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
 }
 
 .orbit-item[data-target="empty"] i {
