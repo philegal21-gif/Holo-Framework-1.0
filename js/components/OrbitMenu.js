@@ -1089,10 +1089,16 @@ export class OrbitMenu {
       }, charge + 400);
     }
 
-    // Strahlenkranz hinter der Erde: geht langsam auf wie bei einer
-    // Sonnenfinsternis und flammt beim Knall kurz auf (siehe _release)
-    this._fx(orbit, 'orbit-corona', {
-      '--size': (R * 5.4).toFixed(0) + 'px',
+    // Sonne taucht hinter dem Erdrand auf: warmer Lichtsaum um die Erde und
+    // ein Glanzpunkt an der Kante (oben rechts); beides schwillt bis zum Knall an
+    this._fx(orbit, 'orbit-halo', {
+      '--size': (R * 3.4).toFixed(0) + 'px',
+      '--dur': charge.toFixed(0) + 'ms'
+    }, charge + 400);
+    this._fx(orbit, 'orbit-glint', {
+      '--size': (R * 0.95).toFixed(0) + 'px',
+      '--r': (R * 0.98).toFixed(0) + 'px',
+      '--angle': '-38deg',
       '--dur': charge.toFixed(0) + 'ms'
     }, charge + 400);
   }
@@ -1113,14 +1119,15 @@ export class OrbitMenu {
       this._fx(this.root, 'orbit-flash', {
         '--size': (R * 2.3).toFixed(0) + 'px'
       });
-      // Horizontaler Linsenstreifen wie bei einer Kamera
-      this._fx(this.root, 'orbit-streak', {
-        '--size': (R * 7.5).toFixed(0) + 'px'
-      });
-      // Der Strahlenkranz flammt auf und klingt aus
-      this._fx(orbit, 'orbit-corona-out', {
-        '--size': (R * 5.4).toFixed(0) + 'px'
+      // Lichtsaum und Glanzpunkt blühen auf und klingen aus
+      this._fx(orbit, 'orbit-halo-out', {
+        '--size': (R * 3.4).toFixed(0) + 'px'
       }, 1600);
+      this._fx(orbit, 'orbit-glint-out', {
+        '--size': (R * 0.95).toFixed(0) + 'px',
+        '--r': (R * 0.98).toFixed(0) + 'px',
+        '--angle': '-38deg'
+      }, 1400);
     }
 
     this._expanded = true;
