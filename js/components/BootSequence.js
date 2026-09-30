@@ -13,7 +13,7 @@ import { ViewManager } from '../core/ViewManager.js';
 const T = {
   ui: 1600,         // Oberfläche einblenden
   open: 2500,       // Orbit-Icons rausfliegen lassen
-  hold: 1700,       // so lange bleiben sie draußen
+  hold: 250,        // kurzer Moment draußen, dann gleich wieder rein
   retryHold: 800    // Wartezeit, falls der Nutzer gerade am Menü ist
 };
 
