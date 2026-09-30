@@ -418,20 +418,20 @@ export class OrbitMenu {
     };
 
     // ============================================================
-    // LANDESGRENZEN
-    // Dünne Linien über der Oberfläche; leise im Normalzustand, deutlicher
-    // beim Hineinzoomen (Deckkraft wird im Render-Loop gesetzt).
+    // KÜSTEN & LANDESGRENZEN
+    // Dünne Vektorlinien über der Oberfläche (zeichnen auch die Küsten);
+    // werden beim Hineinzoomen deutlicher (Deckkraft im Render-Loop).
     // ============================================================
     const baseMat = new THREE.LineBasicMaterial({
-      color: 0xbfe3ea,
+      color: 0x8fd3e6,
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.32,
       depthWrite: false
     });
     const glowMat = new THREE.LineBasicMaterial({
-      color: 0x7fb8c2,
+      color: 0x5cc4e0,
       transparent: true,
-      opacity: 0.03,
+      opacity: 0.16,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -530,14 +530,13 @@ export class OrbitMenu {
 
     // ============================================================
     // ERDOBERFLÄCHE
-    // Tagseite: NASA Blue Marble, Sonnenlicht, Glanzlicht auf dem Ozean.
-    // Nachtseite: dunkle Oberfläche + echte Stadtlichter (Black Marble).
-    // Die Übergangszone (Terminator) bekommt ein leichtes Abendrot.
-    // Farben werden bewusst im Texturraum gerechnet (keine Umrechnung).
+    // Hologramm-Erde: Meer blau und durchscheinend, Land fast schwarz und
+    // leicht durchscheinend. Küsten und Grenzen zeichnen die Vektorlinien.
+    // Tag/Nacht nach echter Uhrzeit; auf der Nachtseite leuchten die
+    // echten Stadtlichter (Black Marble).
     // ============================================================
     const earthMat = new THREE.ShaderMaterial({
       uniforms: {
-        uDay: { value: null },
         uSpec: { value: null },
         uLights: { value: null },
         uSun: { value: sunDir },
@@ -546,7 +545,6 @@ export class OrbitMenu {
       },
       vertexShader: SURFACE_VERT,
       fragmentShader: `
-        uniform sampler2D uDay;
         uniform sampler2D uSpec;
         uniform sampler2D uLights;
         uniform float uFade;
@@ -560,26 +558,26 @@ export class OrbitMenu {
           vec3 V = normalize(vView);
           vec3 L = normalize(vSun);
           float ndl = dot(N, L);
-
-          vec3 dayCol = texture2D(uDay, vUv).rgb;
-          float ocean = texture2D(uSpec, vUv).r;
-
-          // Tag: weiches Sonnenlicht, etwas Grundhelligkeit
           float day = smoothstep(-0.10, 0.22, ndl);
-          vec3 lit = dayCol * (0.10 + 1.0 * max(ndl, 0.0));
+
+          // Wassermaske: 1 = Meer, 0 = Land
+          float ocean = smoothstep(0.35, 0.65, texture2D(uSpec, vUv).r);
+
+          // Hologramm: Meer blau und durchscheinend, Land fast schwarz
+          vec3 oceanCol = vec3(0.03, 0.26, 0.62) * mix(0.40, 1.15, day);
+          vec3 landCol = vec3(0.012, 0.018, 0.026) * mix(0.7, 1.3, day);
+          vec3 col = mix(landCol, oceanCol, ocean);
+          float alpha = mix(mix(0.80, 0.88, day), mix(0.20, 0.44, day), ocean);
 
           // Glanzlicht der Sonne auf dem Wasser
           vec3 H = normalize(L + V);
           float spec = pow(max(dot(N, H), 0.0), 70.0) * ocean * smoothstep(0.0, 0.3, ndl);
-          lit += vec3(1.0, 0.94, 0.82) * spec * 0.7;
+          col += vec3(0.85, 0.92, 1.0) * spec * 0.45;
+          alpha += spec * 0.3;
 
           // Abendrot am Terminator
           float tw = exp(-pow(ndl / 0.14, 2.0));
-          lit += vec3(0.95, 0.42, 0.16) * tw * 0.16 * (0.4 + 0.6 * dayCol.r);
-
-          // Nacht: dunkle, bläuliche Oberfläche
-          vec3 nightCol = dayCol * vec3(0.025, 0.04, 0.07);
-          vec3 col = mix(nightCol, lit, day);
+          col += vec3(0.95, 0.42, 0.16) * tw * 0.06;
 
           // Stadtlichter: scharfe Punkte + weicher Schein, nur auf der Nachtseite
           float nightMask = 1.0 - smoothstep(-0.14, 0.05, ndl);
@@ -588,14 +586,16 @@ export class OrbitMenu {
           vec3 amber = vec3(1.0, 0.56, 0.18);
           vec3 warm = vec3(1.0, 0.88, 0.62);
           vec3 lightCol = mix(amber, warm, smoothstep(0.25, 0.9, sharp));
-          col += lightCol * (sharp * 1.45 + glow * 1.6) * nightMask;
+          float lightI = (sharp * 1.45 + glow * 1.6) * nightMask;
+          col = mix(col, lightCol, clamp(lightI, 0.0, 1.0));
+          alpha = max(alpha, clamp(lightI, 0.0, 1.0));
 
-          // Atmosphäre am Rand: Blauer Saum, auf der Tagseite kräftiger
-          float facing = max(dot(N, V), 0.0);
-          float rim = pow(1.0 - facing, 3.0);
-          col += vec3(0.22, 0.46, 0.95) * rim * (0.10 + 0.50 * day);
+          // Rand: heller blauer Saum, macht die Kugel auch vor dunklem Grund lesbar
+          float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+          col += vec3(0.22, 0.46, 0.95) * rim * (0.25 + 0.55 * day);
+          alpha += rim * 0.45;
 
-          gl_FragColor = vec4(col * uBoost, uFade);
+          gl_FragColor = vec4(col * uBoost, clamp(alpha, 0.0, 1.0) * uFade);
         }
       `,
       transparent: true
@@ -632,7 +632,7 @@ export class OrbitMenu {
           float day = smoothstep(-0.12, 0.25, ndl);
           vec3 col = mix(vec3(0.05, 0.07, 0.11), vec3(1.0) * (0.22 + 0.85 * max(ndl, 0.0)), day);
           // Nachts dünner, tagsüber deckend
-          float alpha = dens * mix(0.22, 0.88, day) * uFade;
+          float alpha = dens * mix(0.10, 0.50, day) * uFade;
           gl_FragColor = vec4(col, alpha);
         }
       `,
@@ -645,12 +645,10 @@ export class OrbitMenu {
 
     // Texturen laden; die Startsequenz wartet darauf (this._earthReady)
     this._earthReady = Promise.all([
-      loadTex('earth-day.jpg'),
       loadTex('earth-specular.jpg'),
       loadTex('earth-lights.png'),
       loadTex('earth-clouds.jpg')
-    ]).then(([day, spec, lights, clouds]) => {
-      earthMat.uniforms.uDay.value = day;
+    ]).then(([spec, lights, clouds]) => {
       earthMat.uniforms.uSpec.value = spec;
       earthMat.uniforms.uLights.value = lights;
       cloudMat.uniforms.uClouds.value = clouds;
@@ -873,8 +871,8 @@ export class OrbitMenu {
       cloudMat.uniforms.uFade.value = fade;
       atmoMat.uniforms.uIntensity.value *= fade;
 
-      // Landesgrenzen: leise, beim Hineinzoomen und beim Aufladen deutlicher
-      const borders = 0.06 + 0.26 * clamp01((this._zoom - 1) / 1.4) + fx.glow * 0.4;
+      // Küsten/Grenzen: dezent, beim Hineinzoomen und beim Aufladen deutlicher
+      const borders = 0.32 + 0.28 * clamp01((this._zoom - 1) / 1.4) + fx.glow * 0.4;
       baseMat.opacity = Math.min(1, borders);
       glowMat.opacity = Math.min(1, borders * 0.5);
 
