@@ -2,7 +2,7 @@ import { ViewManager } from '../core/ViewManager.js';
 import { weather } from '../modules/WeatherModule.js';
 
 /**
- * Wetter als schwebendes Holo-Label auf der Startseite – reiner Text mit
+ * Wetter-Label und Uhr als schwebende Holo-Texte auf der Startseite – reiner Text mit
  * feiner Leitlinie, ohne Kasten und ohne Interaktion. Liegt unter #stage,
  * Erde und Orbit ziehen darüber.
  *
@@ -39,12 +39,49 @@ export class HomeTiles {
           </div>
         </div>
       </div>
+      <div class="home-clock">
+        <div class="home-clock-float">
+          <div class="home-clock-time"><span data-clock-h>--</span><span class="home-clock-colon">:</span><span data-clock-m>--</span></div>
+          <div class="home-clock-date" data-clock-date></div>
+        </div>
+      </div>
     `;
     parent.appendChild(this.root);
+
+    this._startClock();
 
     weather.bindWidget(this.root.querySelector('.weather-label'));
 
     this._bindPointer();
+  }
+
+  _startClock() {
+    const h = this.root.querySelector('[data-clock-h]');
+    const m = this.root.querySelector('[data-clock-m]');
+    const dateEl = this.root.querySelector('[data-clock-date]');
+    const pad = (n) => String(n).padStart(2, '0');
+
+    // ISO-Kalenderwoche (Donnerstag der Woche bestimmt das Jahr)
+    const isoWeek = (d) => {
+      const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+      const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+      return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+    };
+
+    let last = '';
+    const tick = () => {
+      const d = new Date();
+      const key = `${d.getHours()}:${d.getMinutes()}:${d.getDate()}`;
+      if (key === last) return;
+      last = key;
+      h.textContent = pad(d.getHours());
+      m.textContent = pad(d.getMinutes());
+      const wd = d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '').toUpperCase();
+      dateEl.textContent = `${wd} · ${pad(d.getDate())}.${pad(d.getMonth() + 1)}. · KW ${isoWeek(d)}`;
+    };
+    tick();
+    setInterval(tick, 1000);
   }
 
   _bindPointer() {
