@@ -1,11 +1,12 @@
 /* =========================================================
-   HOME TILES – dezente Seiten-Infos (BVG + Wetter)
+   WETTER-LABEL – schwebender Text auf der Startseite
    Reine Anzeige: keine Interaktion, liegt unter #stage (z 5),
    damit Erde und Orbit-Widgets darüber hinwegziehen.
+   Position: unten links, über den Hintergrund-Buttons;
+   die Leitlinie zeigt schräg Richtung Erde.
    ========================================================= */
 
 #home-tiles {
-  --tile-w: 210px;
   --edge: clamp(20px, 3vw, 56px);
 
   position: fixed;
@@ -14,18 +15,18 @@
   pointer-events: none;
 }
 
-.glass-tile {
+.weather-label {
   --depth: 6;
 
   position: absolute;
-  top: 50%;
-  width: var(--tile-w);
-  opacity: 0.42;
+  left: var(--edge);
+  bottom: 96px;
+  opacity: 0.5;
 
   /* Parallaxe – --px/--py kommen aus HomeTiles.js (-1 … 1) */
   translate:
     calc(var(--px, 0) * var(--depth) * -1px)
-    calc(-50% + var(--py, 0) * var(--depth) * -1px);
+    calc(var(--py, 0) * var(--depth) * -1px);
 
   transition:
     opacity 0.8s ease,
@@ -33,55 +34,92 @@
     visibility 0s;
 }
 
-.glass-tile--bvg     { left: var(--edge); }
-.glass-tile--weather { right: var(--edge); }
-
 /* Geöffneter Orbit: noch weiter zurücktreten */
-body:has(.orbit.is-expanded) .glass-tile { opacity: 0.2; }
+body:has(.orbit.is-expanded) .weather-label { opacity: 0.2; }
 
 /* ---------- Schweben ---------- */
 
-.glass-tile-float {
-  animation: glassFloat 10s ease-in-out infinite;
+.weather-label-float {
+  animation: weatherFloat 12s ease-in-out infinite;
 }
 
-.glass-tile--weather .glass-tile-float {
-  animation-duration: 12s;
-  animation-delay: -5s;
-}
-
-@keyframes glassFloat {
+@keyframes weatherFloat {
   0%, 100% { transform: translate3d(0, 0, 0); }
   50%      { transform: translate3d(0, -6px, 0); }
 }
 
-/* ---------- Glasfläche – kaum sichtbar ---------- */
+/* ---------- Text ---------- */
 
-.glass-tile-body {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.035),
-    rgba(255, 255, 255, 0.008)
-  );
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-
-  animation: glassEnter 1.6s ease 0.4s backwards;
+.weather-label-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--silver-bright);
+  text-transform: uppercase;
+  animation: weatherEnter 1.6s ease 0.4s backwards;
 }
 
-@keyframes glassEnter {
+@keyframes weatherEnter {
   from { opacity: 0; filter: blur(8px); }
   to   { opacity: 1; filter: none; }
 }
 
+.weather-label-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+}
+
+.weather-label-icon {
+  font-size: 0.8rem;
+  color: var(--midnight-neon);
+}
+
+.weather-label-temp {
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.weather-label-condition {
+  padding-left: 1.6rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  color: rgba(226, 232, 240, 0.65);
+}
+
+/* ---------- Leitlinie: feiner Strich mit Punkt, läuft zur Erde aus ---------- */
+
+.weather-label-line {
+  position: relative;
+  width: 160px;
+  height: 1px;
+  margin-top: 6px;
+  background: linear-gradient(90deg, rgba(0, 229, 191, 0.9), transparent);
+}
+
+.weather-label-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--midnight-neon);
+  box-shadow: 0 0 8px rgba(0, 229, 191, 0.7);
+}
+
+/* ---------- Fehler: nur ausblenden statt Fehlertext ---------- */
+
+.weather-label-body.weather-error .weather-label-temp { display: none; }
+
 /* ---------- Nur auf HOME sichtbar ---------- */
 
-body:not(.state-home) .glass-tile {
+body:not(.state-home) .weather-label {
   opacity: 0;
   filter: blur(8px);
   visibility: hidden;
@@ -91,173 +129,14 @@ body:not(.state-home) .glass-tile {
     visibility 0s linear 0.4s;
 }
 
-/* =========================================================
-   Widget-Inhalte – kompakt, nur Anzeige
-   ========================================================= */
-
-.glass-tile [data-bvg-refresh],
-.glass-tile [data-weather-refresh],
-.glass-tile .bvg-footer,
-.glass-tile .weather-stats,
-.glass-tile .weather-feels,
-.glass-tile .weather-footer { display: none; }
-
-/* BVG */
-
-.glass-tile .bvg-widget {
-  background: transparent;
-  border-radius: 0;
-}
-
-.glass-tile .bvg-header {
-  background: transparent;
-  color: var(--silver-bright);
-  padding: 11px 14px 7px;
-}
-
-.glass-tile .bvg-station {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-}
-
-.glass-tile .bvg-pulse {
-  width: 6px;
-  height: 6px;
-  background: var(--bvg-yellow);
-}
-
-.glass-tile .bvg-header-icon {
-  font-size: 0.7rem;
-  color: var(--bvg-yellow);
-  opacity: 0.7;
-}
-
-.glass-tile .bvg-list { padding: 0 0 6px; }
-
-.glass-tile .bvg-item:nth-child(n + 4) { display: none; }
-
-.glass-tile .bvg-item {
-  padding: 5px 14px;
-  border-bottom: none;
-}
-
-.glass-tile .bvg-badge {
-  width: 34px;
-  height: 17px;
-  border-radius: 4px;
-  font-size: 0.58rem;
-}
-
-.glass-tile .bvg-dest {
-  margin: 0 8px;
-  font-size: 0.68rem;
-  color: rgba(226, 232, 240, 0.8);
-}
-
-.glass-tile .bvg-time-box { min-width: 40px; }
-.glass-tile .bvg-min { font-size: 0.72rem; }
-.glass-tile .bvg-delay { font-size: 0.52rem; }
-
-.glass-tile .bvg-status {
-  padding: 14px;
-  color: rgba(226, 232, 240, 0.4);
-}
-
-/* Wetter */
-
-.glass-tile .weather-widget,
-.glass-tile .weather-widget.weather-error {
-  height: auto;
-  padding: 11px 14px 10px;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.glass-tile .weather-widget::before { display: none; }
-
-.glass-tile .weather-header { margin-bottom: 4px; }
-
-.glass-tile .weather-location {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-}
-
-.glass-tile .weather-hero {
-  gap: 10px;
-  padding: 0 0 8px;
-  border-bottom: none;
-}
-
-.glass-tile .weather-icon {
-  flex-basis: 36px;
-  width: 36px;
-  height: 36px;
-}
-
-.glass-tile .weather-icon::before { display: none; }
-
-.glass-tile .weather-icon i {
-  font-size: 22px;
-  filter: none;
-  animation: none;
-}
-
-.glass-tile .weather-temperature {
-  font-size: 30px;
-  text-shadow: none;
-}
-
-.glass-tile .weather-degree {
-  font-size: 13px;
-  text-shadow: none;
-}
-
-.glass-tile .weather-condition {
-  font-size: 0.56rem;
-  letter-spacing: 0.12em;
-}
-
-.glass-tile .weather-range {
-  margin-top: 0;
-  padding-top: 7px;
-  gap: 10px;
-  border-top-color: rgba(255, 255, 255, 0.05);
-}
-
-.glass-tile .weather-range > div:not(.weather-range-line) {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 5px;
-}
-
-.glass-tile .weather-range strong { font-size: 0.66rem; }
-
-/* =========================================================
-   SCHMALE SCREENS – seitlich ist kein Platz:
-   klein in die unteren Ecken
-   ========================================================= */
-
+/* Schmale Screens: näher an den Rand */
 @media (max-width: 820px) {
-  #home-tiles {
-    --tile-w: min(190px, calc(50vw - 20px));
-    --edge: 12px;
-  }
-
-  .glass-tile {
-    top: auto;
-    bottom: 60px;
-    translate: calc(var(--px, 0) * var(--depth) * -1px) 0;
-  }
-
-  .glass-tile .bvg-item:nth-child(n + 3) { display: none; }
-  .glass-tile .weather-range { display: none; }
+  #home-tiles { --edge: 16px; }
+  .weather-label { bottom: 72px; }
+  .weather-label-line { width: 90px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass-tile-float,
-  .glass-tile-body { animation: none; }
+  .weather-label-float,
+  .weather-label-body { animation: none; }
 }
