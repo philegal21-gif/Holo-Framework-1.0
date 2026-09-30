@@ -1878,6 +1878,7 @@ export class OrbitMenu {
     if (d.slot) {
       d.slot.style.visibility = '';
       d.slot.classList.remove('is-leaving');
+      d.slot.classList.add('no-enter-anim');
     }
     this._dive = d;
 
@@ -1909,7 +1910,7 @@ export class OrbitMenu {
       if (d.slot) {
         // Verlassenes Modul bleibt noch kurz unsichtbar, bis seine Ausblend-Transition durch ist
         d.slot.style.visibility = 'hidden';
-        d.slot.classList.remove('is-leaving');
+        d.slot.classList.remove('is-leaving', 'no-enter-anim');
         setTimeout(() => { d.slot.style.visibility = ''; }, 950);
       }
     }, 740);
