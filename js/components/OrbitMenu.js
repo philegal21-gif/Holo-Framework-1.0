@@ -670,6 +670,89 @@ export class OrbitMenu {
     earthGroup.add(cityPoints);
 
     // ============================================================
+    // TAG/NACHT-TERMINATOR
+    // Dunkle Halbkugel + feiner Lichtsaum an der Tag/Nacht-Grenze.
+    // uSun = Richtung zum Subsolarpunkt im Erd-Koordinatensystem
+    // (dreht mit der Erde mit), wird minütlich aus der Uhrzeit berechnet.
+    // ============================================================
+    const sunDir = new THREE.Vector3(1, 0, 0);
+    const updateSun = () => {
+      const now = new Date();
+      const dayOfYear = Math.floor((now - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000);
+      const utcH = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      const B = (2 * Math.PI / 365) * (dayOfYear - 81);
+      const eqTimeMin = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+      const decl = -23.44 * Math.cos((2 * Math.PI / 365) * (dayOfYear + 10));
+      const lon = (12 - utcH - eqTimeMin / 60) * 15;
+      sunDir.copy(latLonToVec3(decl, lon, 1)).normalize();
+    };
+    updateSun();
+
+    const nightMat = new THREE.ShaderMaterial({
+      uniforms: { uSun: { value: sunDir }, uAmount: { value: 1 } },
+      vertexShader: `
+        varying vec3 vObj;
+        void main() {
+          vObj = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSun;
+        uniform float uAmount;
+        varying vec3 vObj;
+        void main() {
+          float d = dot(normalize(vObj), normalize(uSun));
+          float night = smoothstep(0.10, -0.22, d);
+          float rim = exp(-pow(d / 0.035, 2.0));
+          vec3 col = mix(vec3(0.0, 0.03, 0.05), vec3(0.0, 0.9, 0.7), rim * 0.55);
+          float a = (night * 0.5 + rim * 0.22) * uAmount;
+          gl_FragColor = vec4(col, a);
+        }
+      `,
+      transparent: true,
+      depthWrite: false
+    });
+    const nightMesh = new THREE.Mesh(new THREE.SphereGeometry(5.03, 64, 64), nightMat);
+    nightMesh.renderOrder = 0.5;
+    earthGroup.add(nightMesh);
+
+    // ============================================================
+    // HEIMAT-MARKER (Berlin) — Punkt mit auslaufendem Puls-Ring
+    // ============================================================
+    const HOME = { lat: 52.52, lon: 13.405 };
+    const homeNormal = latLonToVec3(HOME.lat, HOME.lon, 1).normalize();
+
+    const homeGeo = new THREE.BufferGeometry();
+    const hp = latLonToVec3(HOME.lat, HOME.lon, 5.09);
+    homeGeo.setAttribute('position', new THREE.Float32BufferAttribute([hp.x, hp.y, hp.z], 3));
+    const homeMat = new THREE.PointsMaterial({
+      color: 0xd9fff6,
+      size: 0.5,
+      sizeAttenuation: true,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const homePoint = new THREE.Points(homeGeo, homeMat);
+    homePoint.renderOrder = 3;
+    earthGroup.add(homePoint);
+
+    const pulseMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffcc,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const pulseRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.23, 48), pulseMat);
+    pulseRing.position.copy(homeNormal).multiplyScalar(5.085);
+    pulseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), homeNormal);
+    pulseRing.renderOrder = 3;
+    earthGroup.add(pulseRing);
+
+    // ============================================================
     // ATMOSPHÄRE
     // Dünner Rand-Glow. BackSide, AdditiveBlending → nur der Rand
     // leuchtet, die Mitte bleibt transparent.
@@ -770,6 +853,7 @@ export class OrbitMenu {
     const start = performance.now();
     let lastNow = start;
     let lastEarthFrame = 0;
+    let lastSunUpdate = start;
 
     const tick = (now) => {
       this._earthRafId = requestAnimationFrame(tick);
@@ -816,6 +900,18 @@ export class OrbitMenu {
       if (this._cityMat) {
         this._cityMat.size = (0.32 + Math.sin(t * 3.5) * 0.08) * (1 + fx.glow * 0.6);
       }
+
+      // Sonnenstand nur minütlich neu berechnen
+      if (now - lastSunUpdate > 60000) {
+        lastSunUpdate = now;
+        updateSun();
+      }
+
+      // Berlin: Punkt atmet, Ring läuft alle 3 s aus
+      homeMat.size = 0.45 + Math.sin(t * 2.4) * 0.1;
+      const ph = (t % 3) / 3;
+      pulseRing.scale.setScalar(1 + ph * 4.5);
+      pulseMat.opacity = (1 - ph) * (1 - ph) * 0.8;
 
       renderer.render(scene, camera);
     };

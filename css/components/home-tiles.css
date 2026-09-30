@@ -15,10 +15,14 @@
   pointer-events: none;
 }
 
-.weather-label {
+.weather-label,
+.home-clock {
   --depth: 6;
 
   position: absolute;
+}
+
+.weather-label {
   left: var(--edge);
   bottom: 96px;
   opacity: 0.5;
@@ -35,7 +39,8 @@
 }
 
 /* Geöffneter Orbit: noch weiter zurücktreten */
-body:has(.orbit.is-expanded) .weather-label { opacity: 0.2; }
+body:has(.orbit.is-expanded) .weather-label,
+body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
 
 /* ---------- Schweben ---------- */
 
@@ -117,9 +122,57 @@ body:has(.orbit.is-expanded) .weather-label { opacity: 0.2; }
 
 .weather-label-body.weather-error .weather-label-temp { display: none; }
 
+/* ---------- Uhr: oben rechts, Gegenstück zum Wetter ---------- */
+
+.home-clock {
+  right: var(--edge);
+  top: 92px;
+  text-align: right;
+  opacity: 0.5;
+  translate:
+    calc(var(--px, 0) * var(--depth) * -1px)
+    calc(var(--py, 0) * var(--depth) * -1px);
+  transition:
+    opacity 0.8s ease,
+    filter 0.8s ease,
+    visibility 0s;
+}
+
+.home-clock-float {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--silver-bright);
+  animation: weatherFloat 14s ease-in-out infinite -4s, weatherEnter 1.6s ease 0.6s backwards;
+}
+
+.home-clock-time {
+  font-size: 2.6rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+
+.home-clock-colon {
+  margin: 0 0.05em;
+  color: var(--midnight-neon);
+  animation: clockBlink 2s steps(1) infinite;
+}
+
+@keyframes clockBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.2; }
+}
+
+.home-clock-date {
+  margin-top: 8px;
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  color: rgba(226, 232, 240, 0.65);
+}
+
 /* ---------- Nur auf HOME sichtbar ---------- */
 
-body:not(.state-home) .weather-label {
+body:not(.state-home) .weather-label,
+body:not(.state-home) .home-clock {
   opacity: 0;
   filter: blur(8px);
   visibility: hidden;
@@ -133,10 +186,14 @@ body:not(.state-home) .weather-label {
 @media (max-width: 820px) {
   #home-tiles { --edge: 16px; }
   .weather-label { bottom: 72px; }
+  .home-clock { top: 84px; }
+  .home-clock-time { font-size: 1.9rem; }
   .weather-label-line { width: 90px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .home-clock-float,
+  .home-clock-colon { animation: none; }
   .weather-label-float,
   .weather-label-body { animation: none; }
 }
