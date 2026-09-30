@@ -1820,84 +1820,80 @@ export class OrbitMenu {
 
   /* ============================================================
      EINFLUG
-     Die Scheibe wächst als runde Fläche über den ganzen Bildschirm, der Orbit
-     zoomt und verblasst. Mitten im Flug öffnet das Modul darunter, danach blendet
-     die Fläche aus. Beim Zurückgehen schrumpft sie wieder in die Scheibe.
+     Die Szene fliegt auf die angeklickte Scheibe zu, das Modul wird durch einen
+     Kreis aufgedeckt, der von der Scheibe aus wächst (CSS: body.is-diving-in).
+     Beim Zurückgehen schließt sich der Kreis wieder auf die Scheibe
+     (body.is-diving-out, .module-slot.is-leaving).
      ============================================================ */
-  _divePortal(cx, cy) {
+  _setDiveVars(d) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const rf = Math.hypot(Math.max(cx, vw - cx), Math.max(cy, vh - cy)) + 4;
-    const el = document.createElement('div');
-    el.className = 'orbit-portal';
-    el.style.width = el.style.height = (rf * 2) + 'px';
-    el.style.left = (cx - rf) + 'px';
-    el.style.top = (cy - rf) + 'px';
-    document.body.appendChild(el);
-    return { el, size: rf * 2 };
+    const rf = Math.hypot(Math.max(d.cx, vw - d.cx), Math.max(d.cy, vh - d.cy)) + 4;
+    const st = document.body.style;
+    st.setProperty('--dive-x', d.cx + 'px');
+    st.setProperty('--dive-y', d.cy + 'px');
+    st.setProperty('--dive-r0', (d.dia / 2) + 'px');
+    st.setProperty('--dive-rf', rf + 'px');
   }
 
   _diveInto(project, btn) {
     const reduced = !!(window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-    const item = this._items.find((i) => i.el === btn);
     const rect = btn.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dia = rect.width;
-
-    // Für den Rückweg merken (der Orbit dreht sich im Modul nicht weiter)
-    this._dive = { item, cx, cy, dia };
+    const d = {
+      cx: rect.left + rect.width / 2,
+      cy: rect.top + rect.height / 2,
+      dia: rect.width,
+      slot: null
+    };
 
     if (reduced) {
       this.onOpenProject(project);
       return;
     }
 
-    const { el, size } = this._divePortal(cx, cy);
-    const s0 = dia / size;
-    btn.style.visibility = 'hidden';
-    this._orbit.classList.add('is-diving');
+    clearTimeout(this._diveTimer);
+    this._setDiveVars(d);
+    document.body.classList.remove('is-diving-out');
+    document.body.classList.add('is-diving-in');
 
-    const grow = el.animate(
-      [{ transform: `scale(${s0})` }, { transform: 'scale(1)' }],
-      { duration: 650, easing: 'cubic-bezier(0.6, 0, 0.25, 1)', fill: 'forwards' }
-    );
+    // State wechselt jetzt; der Slot des Moduls bekommt .is-active und wird aufgedeckt
+    this.onOpenProject(project);
+    d.slot = document.querySelector('.module-slot.is-active');
+    if (d.slot) {
+      d.slot.style.visibility = '';
+      d.slot.classList.remove('is-leaving');
+    }
+    this._dive = d;
 
-    // Das Modul öffnet, sobald die Fläche den Bildschirm fast füllt
-    this._later(() => this.onOpenProject(project), 440);
-
-    grow.finished.then(() => {
-      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: 'ease-out', fill: 'forwards' })
-        .finished.then(() => el.remove());
-    }).catch(() => el.remove());
+    this._diveTimer = setTimeout(() => {
+      document.body.classList.remove('is-diving-in');
+    }, 760);
   }
 
-  /** Rückweg: Fläche füllt kurz den Bildschirm und schrumpft in die Scheibe. */
+  /** Rückweg: Der Kreis schließt sich auf die Scheibe, der Orbit fliegt zurück. */
   _diveBack() {
     const d = this._dive;
     this._dive = null;
-    if (!d) {
-      this._orbit.classList.remove('is-diving');
-      return;
-    }
+    if (!d) return;
 
-    const { el, size } = this._divePortal(d.cx, d.cy);
-    const s0 = d.dia / size;
-    el.style.opacity = '0';
+    clearTimeout(this._diveTimer);
+    this._setDiveVars(d);
+    const b = document.body;
+    b.classList.remove('is-diving-in');
+    b.classList.add('is-diving-out');
+    if (d.slot) d.slot.classList.add('is-leaving');
 
-    // Erst deckt die Fläche das ausblendende Modul zu, dann schrumpft sie
-    const fadeIn = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out', fill: 'forwards' });
-    fadeIn.finished.then(() => {
-      this._orbit.classList.remove('is-diving');
-      return el.animate(
-        [{ transform: 'scale(1)' }, { transform: `scale(${s0})` }],
-        { duration: 600, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' }
-      ).finished;
-    }).then(() => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' }).finished)
-      .then(() => el.remove())
-      .catch(() => el.remove());
+    this._diveTimer = setTimeout(() => {
+      b.classList.remove('is-diving-out');
+      if (d.slot) {
+        // Verlassenes Modul bleibt noch kurz unsichtbar, bis seine Ausblend-Transition durch ist
+        d.slot.style.visibility = 'hidden';
+        d.slot.classList.remove('is-leaving');
+        setTimeout(() => { d.slot.style.visibility = ''; }, 950);
+      }
+    }, 740);
   }
 
   _showToast(text) {

@@ -540,42 +540,77 @@ body:not(.state-home) #orbit-stage {
 }
 
 /* =========================================================
-   EINFLUG — Scheibe wächst zum ganzen Bildschirm (Modul öffnet darunter),
-   beim Zurückgehen schrumpft die Fläche wieder in die Scheibe.
+   EINFLUG — Die Szene fliegt auf die angeklickte Scheibe zu; das Modul wird
+   durch einen Kreis aufgedeckt, der von der Scheibe aus wächst.
+   Beim Zurückgehen schließt sich der Kreis wieder auf die Scheibe.
+   Variablen (vom JS am body gesetzt): --dive-x/-y Mittelpunkt, --dive-r0 Scheibenradius,
+   --dive-rf Radius, der den ganzen Bildschirm deckt.
    ========================================================= */
 
-.orbit.is-diving {
-  transform: scale(1.22);
-  opacity: 0;
-  filter: blur(4px);
-  transition:
-    transform 0.65s cubic-bezier(0.55, 0, 0.9, 0.45),
-    opacity 0.5s ease-in 0.08s,
-    filter 0.65s ease-in;
+/* Der Orbit bleibt während des Flugs sichtbar, obwohl der State schon wechselt */
+body.is-diving-in:not(.state-home) #orbit-stage,
+body.is-diving-out #orbit-stage {
+  visibility: visible !important;
 }
 
-.orbit:not(.is-diving) {
-  transition:
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.5s ease-out,
-    filter 0.5s ease-out;
+body.is-diving-in #orbit-stage {
+  transform-origin: var(--dive-x) var(--dive-y);
+  animation: diveZoomIn 720ms cubic-bezier(0.55, 0, 0.9, 0.45) both;
 }
 
-.orbit-portal {
-  position: fixed;
-  z-index: 9000;
-  border-radius: 50%;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 34% 26%,
-      rgba(255, 255, 255, 0.42) 0%,
-      rgba(255, 255, 255, 0.12) 6%,
-      transparent 22%),
-    radial-gradient(circle closest-side,
-      rgba(0, 73, 83, 0.92) 0%,
-      rgba(2, 14, 18, 0.985) 72%,
-      #010709 100%);
-  will-change: transform, opacity;
+body.is-diving-out #orbit-stage {
+  transform-origin: var(--dive-x) var(--dive-y);
+  animation: diveZoomOut 720ms cubic-bezier(0.1, 0.55, 0.45, 1) both;
+}
+
+@keyframes diveZoomIn {
+  0%   { transform: scale(1); opacity: 1; filter: blur(0); }
+  55%  { opacity: 1; }
+  100% { transform: scale(5); opacity: 0; filter: blur(10px); }
+}
+
+@keyframes diveZoomOut {
+  0%   { transform: scale(5); opacity: 0; filter: blur(10px); }
+  45%  { opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+body.is-diving-in .module-slot.is-active {
+  animation: diveReveal 720ms cubic-bezier(0.6, 0, 0.25, 1) both;
+}
+
+body.is-diving-in .module-slot.is-active > .module-inner {
+  animation: diveSettle 720ms ease-out both;
+}
+
+@keyframes diveReveal {
+  from { clip-path: circle(var(--dive-r0) at var(--dive-x) var(--dive-y)); }
+  to   { clip-path: circle(var(--dive-rf) at var(--dive-x) var(--dive-y)); }
+}
+
+@keyframes diveSettle {
+  from { transform: scale(1.1); filter: blur(8px); opacity: 0.5; }
+  to   { transform: none; filter: none; opacity: 1; }
+}
+
+/* Rückweg: das verlassene Modul bleibt sichtbar und schließt sich auf die Scheibe */
+.module-slot.is-leaving {
+  z-index: 100;
+  animation: diveClose 720ms cubic-bezier(0.3, 0, 0.3, 1) both;
+}
+
+.module-slot.is-leaving > .module-inner {
+  transform: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+  visibility: visible !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+@keyframes diveClose {
+  from { clip-path: circle(var(--dive-rf) at var(--dive-x) var(--dive-y)); }
+  to   { clip-path: circle(var(--dive-r0) at var(--dive-x) var(--dive-y)); }
 }
 
 @keyframes openFromCenter {
