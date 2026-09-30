@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HOLO FRAMEWORK — Modular SPA</title>
 
-  <script src="https://unpkg.com/lucide@1.48.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
   <link rel="stylesheet" href="css/main.css" />
@@ -39,7 +40,7 @@
 
 <nav id="nav-bar">
   <div id="brand-title">
-    <i class="fa-solid fa-cube" style="color:var(--midnight-light)"></i>
+    <i class="fa-solid fa-cube brand-icon"></i>
     HOLO <span>FRAMEWORK</span>
   </div>
   <button id="btn-back" class="nav-btn" title="Zurück zur Übersicht">
@@ -79,8 +80,8 @@
 <div id="autoplay-progress"><div class="bar" id="autoplay-bar"></div></div>
 
 <div id="bg-controls">
-  <button id="btn-audio" class="bg-ctrl" title="Ton an/aus" aria-pressed="true">
-    <i class="fa-solid fa-volume-high"></i>
+  <button id="btn-audio" class="bg-ctrl" title="Ton an/aus" aria-pressed="false">
+    <i class="fa-solid fa-volume-xmark"></i>
   </button>
   <button id="btn-stars-speed" class="bg-ctrl" title="Sternen-Geschwindigkeit" aria-pressed="false">
     <i class="fa-solid fa-forward"></i>
@@ -93,58 +94,58 @@
 <div id="key-hints">← → · WHEEL · SPACE · DRAG</div>
 
 <button id="btn-add-favorite" title="Favorit hinzufügen">
-  <i data-lucide="plus" style="width:24px;height:24px;"></i>
+  <i class="fa-solid fa-plus"></i>
 </button>
 
 <div id="add-modal">
   <div id="modal-box">
     <div class="modal-header">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(226,232,240,0.4);background:radial-gradient(circle at 30% 30%, rgba(0,229,191,0.2), rgba(0,35,40,0.9) 85%);box-shadow:0 0 20px rgba(0,229,191,0.35);">
-          <i data-lucide="link" style="width:16px;height:16px;color:var(--midnight-neon);"></i>
+      <div class="modal-title-row">
+        <div class="modal-title-icon">
+          <i class="fa-solid fa-link"></i>
         </div>
         <div>
-          <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--silver-pure);">Favorit Hinzufügen</h3>
-          <p style="font-size:10.5px;color:rgba(148,163,184,0.85);">Web-URL in 3D Kugel einbinden</p>
+          <h3 class="modal-title">Favorit Hinzufügen</h3>
+          <p class="modal-subtitle">Web-URL in 3D Kugel einbinden</p>
         </div>
       </div>
-      <button id="modal-close-btn" class="nav-btn" style="width:36px;height:36px;" title="Schließen">
-        <i data-lucide="x" style="width:14px;height:14px;"></i>
+      <button id="modal-close-btn" class="nav-btn" title="Schließen">
+        <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
 
-    <form id="add-url-form" style="margin-top:20px;display:flex;flex-direction:column;gap:16px;">
+    <form id="add-url-form">
       <div>
         <label class="modal-label">Web-Adresse (URL) *</label>
         <div class="modal-input-wrap">
-          <i data-lucide="globe"></i>
+          <i class="fa-solid fa-globe"></i>
           <input id="input-url" type="text" required placeholder="https://github.com" class="modal-input" />
         </div>
       </div>
       <div>
         <label class="modal-label">Name / Titel (Optional)</label>
         <div class="modal-input-wrap">
-          <i data-lucide="bookmark"></i>
+          <i class="fa-solid fa-bookmark"></i>
           <input id="input-title" type="text" placeholder="z.B. GitHub Vault" class="modal-input" />
         </div>
       </div>
       <div>
-        <div style="font-size:10px;color:rgba(148,163,184,0.9);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Vorschau</div>
+        <div class="modal-label modal-label-preview">Vorschau</div>
         <div class="preview-box">
           <div class="preview-icon-wrap">
-            <i id="preview-fallback-icon" data-lucide="external-link" style="width:16px;height:16px;color:var(--midnight-neon);"></i>
-            <img id="preview-favicon" alt="favicon" style="display:none;" />
+            <i id="preview-fallback-icon" class="fa-solid fa-arrow-up-right-from-square"></i>
+            <img id="preview-favicon" alt="favicon" />
           </div>
-          <div style="display:flex;flex-direction:column;overflow:hidden;">
-            <span id="preview-title" style="font-size:12px;font-weight:600;color:var(--silver-pure);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Domain Name</span>
-            <span id="preview-domain" style="font-size:10px;color:rgba(148,163,184,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">https://domain.com</span>
+          <div class="preview-text">
+            <span id="preview-title">Domain Name</span>
+            <span id="preview-domain">https://domain.com</span>
           </div>
         </div>
       </div>
-      <div style="display:flex;gap:12px;padding-top:8px;">
+      <div class="modal-actions">
         <button type="button" id="modal-cancel-btn" class="modal-btn-secondary">Abbrechen</button>
         <button type="submit" class="modal-btn-primary">
-          <i data-lucide="check" style="width:14px;height:14px;color:var(--midnight-neon);"></i>
+          <i class="fa-solid fa-check"></i>
           <span>Speichern</span>
         </button>
       </div>

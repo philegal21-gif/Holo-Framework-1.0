@@ -10,7 +10,8 @@
 export class AudioEngine {
   constructor() {
     this.ctx = null;
-    this.enabled = true;
+    // Ton ist beim Start aus (Browser blockieren Autoplay ohnehin); Button schaltet ein.
+    this.enabled = false;
     this._unlocked = false;
     this._out = null;
     this._noise = null;

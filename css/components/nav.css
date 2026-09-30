@@ -68,3 +68,6 @@ body:not(.state-home) #btn-back {
   pointer-events: auto;
   transform: scale(1);
 }
+.brand-icon {
+  color: var(--midnight-light);
+}

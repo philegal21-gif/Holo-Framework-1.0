@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { PROJECTS } from '../data/projects.js';
 import { ViewManager } from '../core/ViewManager.js';
 import { audio } from '../core/AudioEngine.js';
@@ -280,12 +281,6 @@ export class OrbitMenu {
      THREE.JS ERDE — transparent, nur Konturen
      ============================================================ */
   _buildEarth(container) {
-    if (!window.THREE) {
-      console.warn('OrbitMenu: Three.js nicht geladen');
-      return;
-    }
-    const THREE = window.THREE;
-
     const width = container.clientWidth || 460;
     const height = container.clientHeight || 460;
 
@@ -320,39 +315,17 @@ export class OrbitMenu {
     canvas.style.top = '0';
     container.appendChild(canvas);
 
-    scene.add(new THREE.AmbientLight(0x021a14, 2.2));
-
-    const rim1 = new THREE.DirectionalLight(0x004d40, 2.8);
-    rim1.position.set(30, 25, -30);
-    scene.add(rim1);
-
-    const rim2 = new THREE.DirectionalLight(0x003328, 2.2);
-    rim2.position.set(-30, -20, -30);
-    scene.add(rim2);
-
-    const fill = new THREE.DirectionalLight(0x00221c, 1.5);
-    fill.position.set(-20, 30, -20);
-    scene.add(fill);
-
     const earthGroup = new THREE.Group();
     scene.add(earthGroup);
 
     // ============================================================
     // UNSICHTBARE KUGEL
-    // Nur da, damit die Konturen eine "Projektionsfläche" haben.
-    // opacity: 0 → komplett durchsichtig
+    // Nur Tiefenmaske: Rückseite der Konturen wird verdeckt, die Kugel
+    // selbst zeichnet keine Farbe. Alle anderen Materialien sind unlit,
+    // daher braucht die Szene kein Licht.
     // ============================================================
     const earthGeo = new THREE.SphereGeometry(5, 32, 32);
-    const earthMat = new THREE.MeshPhysicalMaterial({
-      color: 0x000000,
-      roughness: 0.2,
-      metalness: 0.9,
-      clearcoat: 0.6,
-      clearcoatRoughness: 0.3,
-      reflectivity: 0.5,
-      transparent: true,
-      opacity: 0.0
-    });
+    const earthMat = new THREE.MeshBasicMaterial({ colorWrite: false });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
     earthMesh.renderOrder = -1;
     earthGroup.add(earthMesh);

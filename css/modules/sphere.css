@@ -131,7 +131,7 @@
 }
 
 .sphere-title {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   font-size: 10.5px;
   font-weight: 600;
   color: var(--silver-pure);
@@ -222,5 +222,15 @@ body.state-sphere #btn-add-favorite {
 }
 
 #btn-add-favorite i {
+  font-size: 22px;
   transition: transform 0.3s ease;
+}
+.sphere-favicon-wrap > i,
+.delete-node-btn i {
+  font-size: 11px;
+}
+
+.sphere-favicon-wrap > i {
+  display: none;
+  color: var(--midnight-neon);
 }

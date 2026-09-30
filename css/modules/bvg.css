@@ -140,7 +140,7 @@
 }
 
 .bvg-delay {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -156,7 +156,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.6rem;
   color: #666;
   border-top: 1px solid rgba(255,255,255,0.05);
@@ -179,7 +179,7 @@
 .bvg-status {
   padding: 40px 14px;
   text-align: center;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   color: #666;
   letter-spacing: 0.1em;

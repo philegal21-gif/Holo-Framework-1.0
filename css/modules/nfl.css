@@ -15,7 +15,7 @@
   position: absolute;
   inset: 0;
   color: var(--nfl-white);
-  font-family: 'Inter', 'Outfit', system-ui, sans-serif;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   font-size: 14px;
 }
 
@@ -255,7 +255,7 @@
   position: absolute;
   top: 12px;
   right: 14px;
-  font-family: 'Font Awesome 6 Free', 'Inter', sans-serif;
+  font-family: 'Font Awesome 6 Free', 'Space Grotesk', sans-serif;
   font-weight: 900;
   font-size: 9px;
   letter-spacing: .14em;
