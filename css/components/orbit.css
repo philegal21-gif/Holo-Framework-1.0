@@ -583,6 +583,12 @@ body.is-diving-in .module-slot.is-active > .module-inner {
   animation: diveSettle 720ms ease-out both;
 }
 
+/* Per Einflug geöffnet: nach dem Einflug darf die normale Öffnen-Animation des Moduls
+   (openFromCenter) nicht nochmal starten, sonst springt das Bild auf 0,15 und wächst neu */
+.module-slot.no-enter-anim.is-active > .module-inner {
+  animation: none;
+}
+
 @keyframes diveReveal {
   from { clip-path: circle(var(--dive-r0) at var(--dive-x) var(--dive-y)); }
   to   { clip-path: circle(var(--dive-rf) at var(--dive-x) var(--dive-y)); }
