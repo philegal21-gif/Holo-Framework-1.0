@@ -16,11 +16,6 @@ const T = {
   hold: 1700,       // so lange bleiben sie draußen
   retryHold: 800    // Wartezeit, falls der Nutzer gerade am Menü ist
 };
-const STATUS = [
-  [0, 'INITIALISIERE'],
-  [1100, 'ERDE ONLINE'],
-  [1900, 'SYSTEM BEREIT']
-];
 
 export class BootSequence {
   static isReduced() {
@@ -38,38 +33,17 @@ export class BootSequence {
       return;
     }
 
-    this._status = document.createElement('div');
-    this._status.id = 'boot-status';
-    this._status.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(this._status);
-
     this._skip = () => this.skip();
     ['pointerdown', 'keydown', 'wheel'].forEach((evt) =>
       window.addEventListener(evt, this._skip, { capture: true, passive: true, once: true }));
 
     orbit.playStartup();
-    STATUS.forEach(([at, text]) => this._at(at, () => this._setStatus(text)));
     this._at(T.ui, () => this._finishUi());
     this._at(T.open, () => this._openOrbit());
   }
 
   _at(ms, fn) {
     this._timers.push(setTimeout(fn, ms));
-  }
-
-  _setStatus(text) {
-    if (!this._status) return;
-    this._status.textContent = text;
-    this._status.classList.remove('is-on');
-    void this._status.offsetWidth;   // Animation neu starten
-    this._status.classList.add('is-on');
-  }
-
-  _hideStatus() {
-    if (!this._status) return;
-    this._status.classList.remove('is-on');
-    this._status.classList.add('is-off');
-    setTimeout(() => this._status?.remove(), 900);
   }
 
   _finishUi() {
@@ -79,7 +53,6 @@ export class BootSequence {
 
   _openOrbit() {
     if (this._done || ViewManager.getState() !== 'HOME') return;
-    this._hideStatus();
     this.orbit.expand();
     this._waitIdle(() => this._at(T.hold, () => this._closeOrbit()));
   }
@@ -116,7 +89,6 @@ export class BootSequence {
     this._done = true;
     this._cleanup();
     this.orbit.skipStartup();
-    this._hideStatus();
     this._finishUi();
   }
 
