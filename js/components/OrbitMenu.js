@@ -4,6 +4,7 @@ import { ViewManager } from '../core/ViewManager.js';
 import { audio } from '../core/AudioEngine.js';
 import { Mat3 } from '../core/utils.js';
 import { userLocation } from '../core/Location.js';
+import { CITY_LIGHTS } from '../data/cities.js';
 
 // Rotationsmatrix gegen Rundungsdrift wieder orthonormal machen (Gram-Schmidt)
 const orthonormalize = (m) => {
@@ -561,6 +562,10 @@ export class OrbitMenu {
 
     drawLand(CONTINENTS.map(ring => [ring]));
 
+    // Nachtlichter werden aus der Landmaske gebaut; wird unten belegt und
+    // nach dem Nachladen der echten Küstenlinien erneut aufgerufen.
+    let rebuildLights = () => {};
+
     // ============================================================
     // KONTUR-MATERIALIEN
     // Zwei Layer:
@@ -637,7 +642,10 @@ export class OrbitMenu {
     loadTopo('land-110m.json', 'feature').then(geojson => {
       if (!geojson) return;
       const polygons = geojsonToPolygons(geojson);
-      if (polygons.length) drawLand(polygons);
+      if (polygons.length) {
+        drawLand(polygons);
+        rebuildLights();
+      }
     });
 
     loadTopo('countries-110m.json', 'mesh').then(geojson => {
@@ -699,6 +707,98 @@ export class OrbitMenu {
     const nightMesh = new THREE.Mesh(new THREE.SphereGeometry(5.03, 64, 64), nightMat);
     nightMesh.renderOrder = 0.5;
     earthGroup.add(nightMesh);
+
+    // ============================================================
+    // NACHTLICHTER
+    // Kleine Lichtpunkte um die Großstädte (Dichte nach Einwohnern), nur
+    // über Land (Landmaske aus landCanvas) und nur auf der Nachtseite.
+    // ============================================================
+    const lightsCanvas = document.createElement('canvas');
+    lightsCanvas.width = LAND_W;
+    lightsCanvas.height = LAND_H;
+    const lightsCtx = lightsCanvas.getContext('2d');
+    const lightsTex = new THREE.CanvasTexture(lightsCanvas);
+
+    // Feste Zufallsfolge → bei jedem Start dasselbe Bild
+    const seeded = (seed) => () => {
+      seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const gauss = (rnd) => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd());
+
+    rebuildLights = () => {
+      const rnd = seeded(7);
+      const land = landCtx.getImageData(0, 0, LAND_W, LAND_H).data;
+      lightsCtx.clearRect(0, 0, LAND_W, LAND_H);
+      lightsCtx.globalCompositeOperation = 'lighter';
+
+      CITY_LIGHTS.forEach(([lat, lon, pop]) => {
+        const spread = 0.18 + 0.2 * Math.sqrt(pop);        // Grad, Streuung des Stadtrands
+        const count = Math.round(14 * Math.pow(pop, 0.65) + 8);
+        for (let i = 0; i < count; i++) {
+          const la = lat + gauss(rnd) * spread * 0.55;
+          const lo = lon + gauss(rnd) * spread / Math.max(0.35, Math.cos(lat * Math.PI / 180));
+          const x = Math.round(((lo + 180) / 360) * LAND_W);
+          const y = Math.round(((90 - la) / 180) * LAND_H);
+          if (x < 0 || x >= LAND_W || y < 0 || y >= LAND_H) continue;
+          if (land[(y * LAND_W + x) * 4 + 3] < 40) continue;   // Ozean: kein Licht
+          const r = 0.6 + rnd() * 0.9;
+          const a = 0.2 + rnd() * 0.55;
+          const g = lightsCtx.createRadialGradient(x, y, 0, x, y, r * 2);
+          g.addColorStop(0, `rgba(255,255,255,${a})`);
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          lightsCtx.fillStyle = g;
+          lightsCtx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+        }
+      });
+      lightsTex.needsUpdate = true;
+    };
+    rebuildLights();
+
+    const lightsMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uSun: { value: sunDir },
+        uLights: { value: lightsTex },
+        uColor: { value: new THREE.Color(1.0, 0.9, 0.72) },
+        uAmount: { value: 1 }
+      },
+      vertexShader: `
+        varying vec3 vObj;
+        varying vec3 vNormal;
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vObj = normalize(position);
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSun;
+        uniform sampler2D uLights;
+        uniform vec3 uColor;
+        uniform float uAmount;
+        varying vec3 vObj;
+        varying vec3 vNormal;
+        varying vec2 vUv;
+        void main() {
+          float d = dot(normalize(vObj), normalize(uSun));
+          float night = smoothstep(0.0, -0.2, d);
+          float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
+          float fade = 0.3 + 0.7 * smoothstep(0.0, 0.45, facing);
+          float l = texture2D(uLights, vUv).a * night * fade * uAmount;
+          gl_FragColor = vec4(uColor, min(l, 1.0));
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const lightsMesh = new THREE.Mesh(new THREE.SphereGeometry(5.035, 64, 64), lightsMat);
+    lightsMesh.renderOrder = 0.6;
+    earthGroup.add(lightsMesh);
 
     // ============================================================
     // STANDORT-MARKER — Punkt mit auslaufendem Puls-Ring
@@ -906,6 +1006,7 @@ export class OrbitMenu {
       });
       landMat.uniforms.uFade.value = fade;
       nightMat.uniforms.uAmount.value = smoothstep(0.5, 1, boot);
+      lightsMat.uniforms.uAmount.value = smoothstep(0.6, 1, boot);
       atmoMat.uniforms.uIntensity.value *= fade;
 
       earthGroup.rotation.y += dt * (0.12 + fx.spin);
