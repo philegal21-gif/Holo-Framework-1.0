@@ -9,9 +9,9 @@ VIIRS Day/Night Band).
 - Bezogen über das npm-Paket `globe-threejs` (MIT), Datei `assets/earth-night-4k.jpg`
 - Bearbeitung: nur die hellen Lichtpunkte wurden als Alphakanal extrahiert (4096 × 2048, equirektangular)
 
-## earth-clouds.jpg, earth-specular.jpg
+## earth-clouds.jpg
 
-Wolken und Wassermaske der Erde (je 2048 × 1024, equirektangular).
+Wolken der Erde (2048 × 1024, equirektangular).
 
-- NASA-basierte Karten, bezogen über das npm-Paket `earth-visualization` (MIT)
+- NASA-basierte Karte, bezogen über das npm-Paket `earth-visualization` (MIT)
 - NASA-Bilder sind gemeinfrei; Namensnennung erwünscht
