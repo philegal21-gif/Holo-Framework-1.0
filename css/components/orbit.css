@@ -179,54 +179,123 @@ body:not(.state-home) #orbit-stage {
   100% { opacity: 0;   transform: rotate(calc(var(--angle) + 55deg)) translateX(var(--to)) scale(1.2); }
 }
 
-/* Strahlenkranz hinter der Erde (z-index -1: unter dem Cluster mit der Erde) */
-.orbit-corona,
-.orbit-corona-out {
+/* Sonne taucht hinter dem Erdrand auf: warmer Lichtsaum am Rand + ein Glanzpunkt.
+   Die Elemente sind --size groß (Radius der Erde = 100/1.7 %, siehe JS), der Saum
+   liegt direkt an der Erdkante. z-index -1: unter dem Cluster mit der Erde. */
+.orbit-halo,
+.orbit-halo-out {
   width: var(--size, 600px);
   height: var(--size, 600px);
   margin: calc(var(--size, 600px) / -2) 0 0 calc(var(--size, 600px) / -2);
   border-radius: 50%;
-  background:
-    radial-gradient(circle,
-      rgba(255, 214, 150, 0.0) 0%,
-      rgba(255, 214, 150, 0.0) 17%,
-      rgba(255, 200, 130, 0.45) 21%,
-      rgba(255, 170, 100, 0.14) 36%,
-      transparent 58%),
-    /* Zwei Strahlenschichten mit unterschiedlichem Takt → unregelmäßig, nicht wie ein Sonnen-Icon */
-    repeating-conic-gradient(from 7deg,
-      rgba(255, 228, 175, 0) 0deg,
-      rgba(255, 228, 175, 0.38) 1.6deg,
-      rgba(255, 228, 175, 0) 4.2deg,
-      rgba(255, 228, 175, 0) 11.3deg),
-    repeating-conic-gradient(from 0deg,
-      rgba(255, 214, 150, 0) 0deg,
-      rgba(255, 214, 150, 0.26) 3.4deg,
-      rgba(255, 214, 150, 0) 7.5deg,
-      rgba(255, 214, 150, 0) 19.1deg);
-  -webkit-mask-image: radial-gradient(circle, transparent 0%, transparent 15%, #000 23%, #000 30%, transparent 62%);
-  mask-image: radial-gradient(circle, transparent 0%, transparent 15%, #000 23%, #000 30%, transparent 62%);
-  filter: blur(2.5px);
+  background: radial-gradient(circle closest-side,
+    transparent 0%,
+    transparent 56%,
+    rgba(255, 206, 150, 0.55) 60%,
+    rgba(255, 174, 110, 0.22) 70%,
+    rgba(255, 150, 90, 0.06) 84%,
+    transparent 100%);
+  filter: blur(3px);
   mix-blend-mode: screen;
   z-index: -1;
 }
 
-.orbit-corona {
-  animation: coronaIn var(--dur, 1100ms) cubic-bezier(0.4, 0, 0.3, 1) forwards;
+.orbit-halo {
+  animation: haloIn var(--dur, 1100ms) cubic-bezier(0.4, 0, 0.3, 1) forwards;
 }
 
-@keyframes coronaIn {
-  0%   { opacity: 0;    transform: scale(0.62) rotate(0deg); }
-  100% { opacity: 0.75; transform: scale(1) rotate(28deg); }
+@keyframes haloIn {
+  0%   { opacity: 0;   transform: scale(0.94); }
+  100% { opacity: 0.9; transform: scale(1); }
 }
 
-.orbit-corona-out {
-  animation: coronaOut 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.orbit-halo-out {
+  animation: haloOut 1300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes coronaOut {
-  0%   { opacity: 1;   transform: scale(1) rotate(28deg); }
-  100% { opacity: 0;   transform: scale(1.5) rotate(46deg); }
+@keyframes haloOut {
+  0%   { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.12); }
+}
+
+/* Glanzpunkt am Erdrand mit feinem waagerechtem Linsenstreifen.
+   Das Element sitzt nur auf dem Rand; Wachsen/Verblühen machen die
+   Pseudo-Elemente, damit die Skalierung die Position nicht verschiebt. */
+.orbit-glint,
+.orbit-glint-out {
+  width: var(--size, 120px);
+  height: var(--size, 120px);
+  margin: calc(var(--size, 120px) / -2) 0 0 calc(var(--size, 120px) / -2);
+  transform: rotate(var(--angle, -35deg)) translateX(var(--r, 150px)) rotate(calc(var(--angle, -35deg) * -1));
+  mix-blend-mode: screen;
+  z-index: 7;
+}
+
+.orbit-glint::before,
+.orbit-glint-out::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side,
+    rgba(255, 255, 250, 1) 0%,
+    rgba(255, 246, 222, 0.95) 12%,
+    rgba(255, 216, 152, 0.55) 30%,
+    rgba(255, 180, 110, 0.16) 58%,
+    transparent 100%);
+}
+
+.orbit-glint::after,
+.orbit-glint-out::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 720%;
+  height: 2px;
+  margin: -1px 0 0 -360%;
+  background: radial-gradient(ellipse closest-side,
+    rgba(255, 244, 222, 0.9) 0%,
+    rgba(255, 200, 140, 0.35) 35%,
+    transparent 100%);
+}
+
+.orbit-glint {
+  animation: glintFade var(--dur, 1100ms) ease-in forwards;
+}
+
+.orbit-glint::before,
+.orbit-glint::after {
+  animation: glintGrow var(--dur, 1100ms) cubic-bezier(0.5, 0, 0.5, 1) forwards;
+}
+
+@keyframes glintFade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes glintGrow {
+  0%   { transform: scale(0.15); }
+  100% { transform: scale(1); }
+}
+
+.orbit-glint-out {
+  animation: glintFadeOut 1000ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.orbit-glint-out::before,
+.orbit-glint-out::after {
+  animation: glintBloom 1000ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes glintFadeOut {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes glintBloom {
+  0%   { transform: scale(1); }
+  100% { transform: scale(2.8); }
 }
 
 /* =========================================================
@@ -253,29 +322,6 @@ body:not(.state-home) #orbit-stage {
   0%   { opacity: 0; transform: scale(0.55); }
   14%  { opacity: 1; }
   100% { opacity: 0; transform: scale(1.8); }
-}
-
-/* Horizontaler Linsenstreifen (anamorph) */
-.orbit-streak {
-  width: var(--size, 900px);
-  height: 5px;
-  margin: -2.5px 0 0 calc(var(--size, 900px) / -2);
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center,
-    rgba(255, 248, 232, 0.95) 0%,
-    rgba(255, 214, 160, 0.5) 25%,
-    rgba(255, 180, 110, 0.12) 60%,
-    transparent 100%);
-  filter: blur(1.2px);
-  mix-blend-mode: screen;
-  z-index: 8;
-  animation: streak 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes streak {
-  0%   { opacity: 0;   transform: scaleX(0.05) scaleY(1.6); }
-  12%  { opacity: 1; }
-  100% { opacity: 0;   transform: scaleX(1) scaleY(0.4); }
 }
 
 /* =========================================================
