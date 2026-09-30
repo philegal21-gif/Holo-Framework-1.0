@@ -770,7 +770,7 @@ export class OrbitMenu {
         const ci = easeInCubic(c);
         const cs = easeInOutSine(c);
         return {
-          tremble: 0.012 + 0.08 * ci,
+          tremble: 0.004 * ci,
           scale: 1 - (1 - CHARGE_SCALE) * cs,
           glow: 0.55 * ci,
           atmo: 1 + 1.4 * ci,
@@ -792,7 +792,7 @@ export class OrbitMenu {
       const spring = 1 + 0.075 * a * Math.exp(-r / 230) * Math.cos(r * 0.016);
       const attack = easeOutCubic(clamp01(r / 70));
       return {
-        tremble: 0.2 * a * Math.exp(-r / 170),
+        tremble: 0.03 * a * Math.exp(-r / 170),
         scale: from + (spring - from) * attack,
         glow: 0.7 * a * Math.exp(-r / 450),
         atmo: 1 + 2.4 * a * Math.exp(-r / 320),
@@ -1073,7 +1073,8 @@ export class OrbitMenu {
     const orbit = this._orbit;
     const mobile = window.innerWidth < 640;
 
-    // sqrt(random) → Partikel werden zum Ende hin dichter, das Aufladen schwillt an
+    // Goldener Staub wird spiralförmig in die Erde gezogen; sqrt(random) →
+    // zum Ende hin dichter, das Aufladen schwillt an
     const count = mobile ? 18 : 30;
     for (let i = 0; i < count; i++) {
       const delay = charge * 0.82 * Math.sqrt(Math.random());
@@ -1082,23 +1083,18 @@ export class OrbitMenu {
         '--angle': rand(0, 360).toFixed(1) + 'deg',
         '--from': (R * rand(1.35, 2.2)).toFixed(1) + 'px',
         '--to': (R * 1.02).toFixed(1) + 'px',
-        '--len': rand(8, 20).toFixed(1) + 'px',
+        '--size': rand(2, 4.2).toFixed(1) + 'px',
         '--dur': dur.toFixed(0) + 'ms',
         '--delay': delay.toFixed(0) + 'ms'
       }, charge + 400);
     }
 
-    // Drei Ringe, jeder etwas kräftiger – der letzte endet genau beim Knall
-    const ringScale = 1.9;
-    [0.1, 0.38, 0.62].forEach((d, i) => {
-      this._fx(orbit, 'orbit-charge-ring', {
-        '--ring': (R * 2 * ringScale).toFixed(0) + 'px',
-        '--end-scale': (1.03 / ringScale).toFixed(3),
-        '--dur': (charge * 0.38).toFixed(0) + 'ms',
-        '--delay': (charge * d).toFixed(0) + 'ms',
-        '--peak': (0.35 + i * 0.2).toFixed(2)
-      }, charge + 400);
-    });
+    // Strahlenkranz hinter der Erde: geht langsam auf wie bei einer
+    // Sonnenfinsternis und flammt beim Knall kurz auf (siehe _release)
+    this._fx(orbit, 'orbit-corona', {
+      '--size': (R * 5.4).toFixed(0) + 'px',
+      '--dur': charge.toFixed(0) + 'ms'
+    }, charge + 400);
   }
 
   /** Phase 2 + 3: Knall, dann fliegen die Widgets als Welle raus. */
@@ -1117,13 +1113,14 @@ export class OrbitMenu {
       this._fx(this.root, 'orbit-flash', {
         '--size': (R * 2.3).toFixed(0) + 'px'
       });
-      this._fx(this.root, 'orbit-shockwave', {
-        '--size': (R * 2.05).toFixed(0) + 'px',
-        '--end-scale': '2.8',
-        '--dur': '950ms',
-        '--delay': '0ms',
-        '--peak': '0.9'
+      // Horizontaler Linsenstreifen wie bei einer Kamera
+      this._fx(this.root, 'orbit-streak', {
+        '--size': (R * 7.5).toFixed(0) + 'px'
       });
+      // Der Strahlenkranz flammt auf und klingt aus
+      this._fx(orbit, 'orbit-corona-out', {
+        '--size': (R * 5.4).toFixed(0) + 'px'
+      }, 1600);
     }
 
     this._expanded = true;
@@ -1137,21 +1134,11 @@ export class OrbitMenu {
       })
       .sort((u, v) => u.a - v.a);
 
-    order.forEach(({ item, p, a }, rank) => {
+    order.forEach(({ item }, rank) => {
       const delay = rank * T.stagger;
       item.launchDelay = delay;
       item.el.style.setProperty('--burst-delay', delay + 'ms');
       item.el.classList.add('is-bursting');
-
-      if (!reduced) {
-        // Leuchtspur in Flugrichtung, läuft dem Widget knapp voraus
-        this._fx(orbit, 'orbit-ray', {
-          '--angle': (a * 180 / Math.PI).toFixed(1) + 'deg',
-          '--len': Math.hypot(p.x, p.y).toFixed(0) + 'px',
-          '--dur': (T.fly * 0.75).toFixed(0) + 'ms',
-          '--delay': delay + 'ms'
-        });
-      }
     });
 
     this._intro = { release: performance.now(), fly: T.fly };
