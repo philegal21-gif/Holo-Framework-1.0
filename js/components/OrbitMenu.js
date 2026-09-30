@@ -53,6 +53,10 @@ const OUTRO_REDUCED = { fly: 150, stagger: 0 };
 // Neigung der Erdachse zur Kamera (rad): Norden kippt nach vorn, Europa rückt ins Bild
 const EARTH_TILT = 0.6;
 
+// Zoom der Erde (Mausrad, Pinch, +/-): Faktor auf die Grundgröße
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 2.6;
+
 // Aufbau der Erde beim Start (ms): Linien ziehen sich, Land blendet ein
 const BOOT_EARTH_MS = 2400;
 
@@ -67,6 +71,16 @@ export class OrbitMenu {
     // Startsequenz: Erde bleibt leer, bis playStartup() sie aufbaut
     this._bootHold = !!options.startHidden && !reducedMotion;
     this._bootStart = null;
+
+    // Zoom: _zoom = aktueller (animierter) Wert, _zoomBase = Größe, in der das
+    // Canvas zuletzt scharf gerendert wurde. Dazwischen skaliert CSS (flüssig),
+    // nach kurzer Ruhe wird die Auflösung nachgezogen (_commitZoom).
+    this._zoom = 1;
+    this._zoomTarget = 1;
+    this._zoomBase = 1;
+    this._zoomIdleAt = 0;
+    this._zoomResetting = false;
+    this._zoomWaiters = [];
 
     this._items = [];
     this._toast = null;
@@ -117,6 +131,7 @@ export class OrbitMenu {
     this._build();
     this._bindMouse();
     this._bindDrag();
+    this._bindZoom();
     this._bindResize();
     this._bindViewChanges();
     this._startRaf();
@@ -152,6 +167,7 @@ export class OrbitMenu {
 
     const earth = document.createElement('div');
     earth.className = 'orbit-earth';
+    this._earthEl = earth;
     core.appendChild(earth);
     cluster.appendChild(core);
 
@@ -713,11 +729,15 @@ export class OrbitMenu {
     // Kleine Lichtpunkte um die Großstädte (Dichte nach Einwohnern), nur
     // über Land (Landmaske aus landCanvas) und nur auf der Nachtseite.
     // ============================================================
+    // Doppelte Auflösung der Landmaske: Lichter sind feine Einzelpunkte
+    const LIGHT_W = 4096;
+    const LIGHT_H = 2048;
     const lightsCanvas = document.createElement('canvas');
-    lightsCanvas.width = LAND_W;
-    lightsCanvas.height = LAND_H;
+    lightsCanvas.width = LIGHT_W;
+    lightsCanvas.height = LIGHT_H;
     const lightsCtx = lightsCanvas.getContext('2d');
     const lightsTex = new THREE.CanvasTexture(lightsCanvas);
+    lightsTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
     // Feste Zufallsfolge → bei jedem Start dasselbe Bild
     const seeded = (seed) => () => {
@@ -731,28 +751,68 @@ export class OrbitMenu {
     rebuildLights = () => {
       const rnd = seeded(7);
       const land = landCtx.getImageData(0, 0, LAND_W, LAND_H).data;
-      lightsCtx.clearRect(0, 0, LAND_W, LAND_H);
-      lightsCtx.globalCompositeOperation = 'lighter';
+      const ctx = lightsCtx;
+      ctx.clearRect(0, 0, LIGHT_W, LIGHT_H);
+      ctx.globalCompositeOperation = 'lighter';
 
+      // Ein Lichtpunkt (1 px) bei Breite/Länge; Ozean wird verworfen
+      const dot = (la, lo, alpha) => {
+        const x = Math.floor(((lo + 180) / 360) * LIGHT_W);
+        const y = Math.floor(((90 - la) / 180) * LIGHT_H);
+        if (x < 0 || x >= LIGHT_W || y < 0 || y >= LIGHT_H) return;
+        if (land[((y >> 1) * LAND_W + (x >> 1)) * 4 + 3] < 40) return;
+        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+        ctx.fillRect(x, y, 1, 1);
+      };
+      const lonScale = (lat) => 1 / Math.max(0.35, Math.cos(lat * Math.PI / 180));
+
+      // 1) Stadtkern + Vororte + Satellitenorte
       CITY_LIGHTS.forEach(([lat, lon, pop]) => {
-        const spread = 0.18 + 0.2 * Math.sqrt(pop);        // Grad, Streuung des Stadtrands
-        const count = Math.round(14 * Math.pow(pop, 0.65) + 8);
-        for (let i = 0; i < count; i++) {
-          const la = lat + gauss(rnd) * spread * 0.55;
-          const lo = lon + gauss(rnd) * spread / Math.max(0.35, Math.cos(lat * Math.PI / 180));
-          const x = Math.round(((lo + 180) / 360) * LAND_W);
-          const y = Math.round(((90 - la) / 180) * LAND_H);
-          if (x < 0 || x >= LAND_W || y < 0 || y >= LAND_H) continue;
-          if (land[(y * LAND_W + x) * 4 + 3] < 40) continue;   // Ozean: kein Licht
-          const r = 0.6 + rnd() * 0.9;
-          const a = 0.2 + rnd() * 0.55;
-          const g = lightsCtx.createRadialGradient(x, y, 0, x, y, r * 2);
-          g.addColorStop(0, `rgba(255,255,255,${a})`);
-          g.addColorStop(1, 'rgba(255,255,255,0)');
-          lightsCtx.fillStyle = g;
-          lightsCtx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+        const sigma = 0.09 + 0.085 * Math.sqrt(pop);       // Grad, Größe des Kerns
+        const core = Math.round(120 * Math.pow(pop, 0.8) + 60);
+
+        for (let i = 0; i < core; i++) {
+          // Mischung: dichter Kern, lockerer Gürtel drumherum
+          const wide = rnd() < 0.35 ? 2.4 : 1;
+          dot(lat + gauss(rnd) * sigma * 0.6 * wide,
+              lon + gauss(rnd) * sigma * lonScale(lat) * wide,
+              0.18 + rnd() * 0.5);
+        }
+
+        // Satellitenorte im Umland
+        const sats = 2 + Math.round(Math.sqrt(pop));
+        for (let k = 0; k < sats; k++) {
+          const ang = rnd() * Math.PI * 2;
+          const d = sigma * (1.8 + rnd() * 2.6);
+          const sla = lat + Math.sin(ang) * d * 0.6;
+          const slo = lon + Math.cos(ang) * d * lonScale(lat);
+          const n = Math.round(14 + 10 * Math.sqrt(pop) * rnd());
+          for (let i = 0; i < n; i++) {
+            dot(sla + gauss(rnd) * sigma * 0.22,
+                slo + gauss(rnd) * sigma * 0.22 * lonScale(lat),
+                0.15 + rnd() * 0.4);
+          }
         }
       });
+
+      // 2) Verbindungen zwischen benachbarten Städten (Straßen, Bahnlinien)
+      for (let i = 0; i < CITY_LIGHTS.length; i++) {
+        for (let j = i + 1; j < CITY_LIGHTS.length; j++) {
+          const [la1, lo1, p1] = CITY_LIGHTS[i];
+          const [la2, lo2, p2] = CITY_LIGHTS[j];
+          const dla = la2 - la1;
+          const dlo = (lo2 - lo1) * Math.cos(((la1 + la2) / 2) * Math.PI / 180);
+          const dist = Math.hypot(dla, dlo);
+          if (dist > 3.4 || dist < 0.25) continue;
+          const n = Math.round(Math.sqrt(Math.min(p1, p2)) * dist * 38);
+          for (let k = 0; k < n; k++) {
+            const t = rnd();
+            dot(la1 + dla * t + gauss(rnd) * 0.03,
+                lo1 + (lo2 - lo1) * t + gauss(rnd) * 0.03 * lonScale((la1 + la2) / 2),
+                0.12 + rnd() * 0.3);
+          }
+        }
+      }
       lightsTex.needsUpdate = true;
     };
     rebuildLights();
@@ -788,7 +848,10 @@ export class OrbitMenu {
           float night = smoothstep(0.0, -0.2, d);
           float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
           float fade = 0.3 + 0.7 * smoothstep(0.0, 0.45, facing);
-          float l = texture2D(uLights, vUv).a * night * fade * uAmount;
+          // scharfe Punkte + weicher Stadtschein (unscharfe Mip-Stufe)
+          float sharp = texture2D(uLights, vUv).a;
+          float glow = texture2D(uLights, vUv, 3.5).a;
+          float l = (sharp * 1.0 + glow * 1.05) * night * fade * uAmount;
           gl_FragColor = vec4(uColor, min(l, 1.0));
         }
       `,
@@ -960,7 +1023,8 @@ export class OrbitMenu {
       this._earthRafId = requestAnimationFrame(tick);
 
       // 2 ms Toleranz, sonst werden durch RAF-Jitter Frames verworfen
-      const interval = this._earthFx ? 1000 / 60 : 1000 / 30;
+      const zooming = Math.abs(this._zoomTarget - this._zoom) > 0.0005;
+      const interval = (this._earthFx || zooming) ? 1000 / 60 : 1000 / 30;
       if (now - lastEarthFrame < interval - 2) return;
       lastEarthFrame = now;
 
@@ -973,6 +1037,16 @@ export class OrbitMenu {
       const t = (now - start) / 1000;
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
+
+      // Zoom: weich auf den Zielwert, danach Auflösung nachziehen
+      if (zooming) {
+        this._zoom += (this._zoomTarget - this._zoom) * (1 - Math.exp(-dt * 10));
+        if (Math.abs(this._zoomTarget - this._zoom) < 0.0005) this._zoom = this._zoomTarget;
+        this._earthEl.style.transform = `scale(${(this._zoom / this._zoomBase).toFixed(4)})`;
+        this._zoomIdleAt = now;
+      } else if (this._zoom !== this._zoomBase && now - this._zoomIdleAt > 200) {
+        this._commitZoom();
+      }
 
       const fx = computeFx(now);
 
@@ -1041,6 +1115,18 @@ export class OrbitMenu {
      ============================================================ */
   expand() {
     if (this._expanded || this._transitioning) return;
+
+    // Gezoomte Erde erst auf Normalgröße, dann laden (Widgets kreisen auf festem Radius)
+    if (Math.abs(this._zoom - 1) > 1e-3 || this._zoomBase !== 1) {
+      if (this._zoomResetting) return;
+      this._zoomResetting = true;
+      this._resetZoom().then(() => {
+        this._zoomResetting = false;
+        this.expand();
+      });
+      return;
+    }
+
     this._transitioning = true;
 
     const reduced = !!(window.matchMedia &&
@@ -1087,6 +1173,75 @@ export class OrbitMenu {
   _bootValue(now) {
     if (this._bootStart === null) return this._bootHold ? 0 : 1;
     return clamp01((now - this._bootStart) / BOOT_EARTH_MS);
+  }
+
+  /* ============================================================
+     ZOOM – Mausrad, Pinch (Touch) und +/−/0. Nur auf HOME und solange
+     der Orbit eingeklappt ist.
+     ============================================================ */
+  _canZoom() {
+    return ViewManager.getState() === 'HOME' && !this._expanded &&
+      !this._transitioning && !this._zoomResetting;
+  }
+
+  _setZoomTarget(z) {
+    this._zoomTarget = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  }
+
+  /** Canvas in der aktuellen Zoomstufe neu auflösen (scharf statt hochskaliert). */
+  _commitZoom() {
+    this._zoomBase = this._zoom;
+    this._core.style.setProperty('--earth-zoom', this._zoom.toFixed(4));
+    this._earthEl.style.transform = '';
+    if (this._earthResize) this._earthResize();
+    if (this._zoom === 1) this._zoomWaiters.splice(0).forEach((fn) => fn());
+  }
+
+  _resetZoom() {
+    return new Promise((resolve) => {
+      if (this._zoom === 1 && this._zoomBase === 1) { resolve(); return; }
+      this._zoomTarget = 1;
+      this._zoomWaiters.push(resolve);
+    });
+  }
+
+  _bindZoom() {
+    this._onWheelZoom = (e) => {
+      if (!this._canZoom()) return;
+      e.preventDefault();
+      // Trackpad-Pinch kommt als wheel mit ctrlKey und kleinen Deltas
+      const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0008));
+      this._setZoomTarget(this._zoomTarget * k);
+    };
+    window.addEventListener('wheel', this._onWheelZoom, { passive: false });
+
+    let pinch = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    this._onPinchStart = (e) => {
+      if (e.touches.length === 2 && this._canZoom()) {
+        pinch = { d0: dist(e.touches), z0: this._zoomTarget };
+      }
+    };
+    this._onPinchMove = (e) => {
+      if (!pinch || e.touches.length !== 2 || !this._canZoom()) return;
+      e.preventDefault();
+      this._setZoomTarget(pinch.z0 * dist(e.touches) / pinch.d0);
+    };
+    this._onPinchEnd = (e) => { if (e.touches.length < 2) pinch = null; };
+    window.addEventListener('touchstart', this._onPinchStart, { passive: true });
+    window.addEventListener('touchmove', this._onPinchMove, { passive: false });
+    window.addEventListener('touchend', this._onPinchEnd, { passive: true });
+    window.addEventListener('touchcancel', this._onPinchEnd, { passive: true });
+
+    this._onKeyZoom = (e) => {
+      if (!this._canZoom() || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === '+' || e.key === '=') this._setZoomTarget(this._zoomTarget * 1.2);
+      else if (e.key === '-') this._setZoomTarget(this._zoomTarget / 1.2);
+      else if (e.key === '0') this._setZoomTarget(1);
+    };
+    window.addEventListener('keydown', this._onKeyZoom);
   }
 
   _later(fn, ms) {
@@ -1756,6 +1911,14 @@ export class OrbitMenu {
       this._orbit.removeEventListener('pointerdown', this._boundOnPointerDown);
       this._orbit.removeEventListener('click', this._onOrbitClick);
     }
+    if (this._onWheelZoom) window.removeEventListener('wheel', this._onWheelZoom);
+    if (this._onPinchStart) {
+      window.removeEventListener('touchstart', this._onPinchStart);
+      window.removeEventListener('touchmove', this._onPinchMove);
+      window.removeEventListener('touchend', this._onPinchEnd);
+      window.removeEventListener('touchcancel', this._onPinchEnd);
+    }
+    if (this._onKeyZoom) window.removeEventListener('keydown', this._onKeyZoom);
     if (typeof this._unsubscribeLocation === 'function') this._unsubscribeLocation();
     if (typeof this._unsubscribeView === 'function') {
       this._unsubscribeView();
