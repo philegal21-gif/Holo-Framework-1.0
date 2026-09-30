@@ -1621,6 +1621,7 @@ export class OrbitMenu {
   _bindViewChanges() {
     this._unsubscribeView = ViewManager.onChange((next) => {
       if (next === 'HOME') {
+        this._diveBack();
         setTimeout(() => {
           this._resetWarpState();
           if (this._expanded && this._orbit) {
@@ -1652,7 +1653,7 @@ export class OrbitMenu {
     this._items.forEach(i => { i.warping = false; });
 
     document.querySelectorAll(
-      '.orbit-spark, .orbit-trail-dot, .orbit-warp-burst, .orbit-fx'
+      '.orbit-fx'
     ).forEach(n => n.remove());
   }
 
@@ -1814,118 +1815,89 @@ export class OrbitMenu {
       return;
     }
 
-    const itemEntry = this._items.find(i => i.el === btn);
-    if (itemEntry) itemEntry.warping = true;
+    this._diveInto(project, btn);
+  }
 
+  /* ============================================================
+     EINFLUG
+     Die Scheibe wächst als runde Fläche über den ganzen Bildschirm, der Orbit
+     zoomt und verblasst. Mitten im Flug öffnet das Modul darunter, danach blendet
+     die Fläche aus. Beim Zurückgehen schrumpft sie wieder in die Scheibe.
+     ============================================================ */
+  _divePortal(cx, cy) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const rf = Math.hypot(Math.max(cx, vw - cx), Math.max(cy, vh - cy)) + 4;
+    const el = document.createElement('div');
+    el.className = 'orbit-portal';
+    el.style.width = el.style.height = (rf * 2) + 'px';
+    el.style.left = (cx - rf) + 'px';
+    el.style.top = (cy - rf) + 'px';
+    document.body.appendChild(el);
+    return { el, size: rf * 2 };
+  }
+
+  _diveInto(project, btn) {
+    const reduced = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+    const item = this._items.find((i) => i.el === btn);
     const rect = btn.getBoundingClientRect();
-    const startLeft = rect.left;
-    const startTop = rect.top;
-    const w = rect.width;
-    const h = rect.height;
-    const centerX = startLeft + w / 2;
-    const centerY = startTop + h / 2;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dia = rect.width;
 
-    const vpCx = window.innerWidth / 2;
-    const vpCy = window.innerHeight / 2;
+    // Für den Rückweg merken (der Orbit dreht sich im Modul nicht weiter)
+    this._dive = { item, cx, cy, dia };
 
-    btn.style.position = 'fixed';
-    btn.style.left = startLeft + 'px';
-    btn.style.top = startTop + 'px';
-    btn.style.width = w + 'px';
-    btn.style.height = h + 'px';
-    btn.style.marginLeft = '0';
-    btn.style.marginTop = '0';
-    btn.style.transform = 'translate3d(0, 0, 0) scale(1)';
-    btn.style.zIndex = '9999';
-    btn.style.pointerEvents = 'none';
+    if (reduced) {
+      this.onOpenProject(project);
+      return;
+    }
 
-    void btn.offsetWidth;
+    const { el, size } = this._divePortal(cx, cy);
+    const s0 = dia / size;
+    btn.style.visibility = 'hidden';
+    this._orbit.classList.add('is-diving');
 
-    btn.classList.add('is-warping');
-    btn.classList.add('is-shrinking');
+    const grow = el.animate(
+      [{ transform: `scale(${s0})` }, { transform: 'scale(1)' }],
+      { duration: 650, easing: 'cubic-bezier(0.6, 0, 0.25, 1)', fill: 'forwards' }
+    );
 
-    setTimeout(() => {
-      btn.style.opacity = '0';
-      btn.style.visibility = 'hidden';
+    // Das Modul öffnet, sobald die Fläche den Bildschirm fast füllt
+    this._later(() => this.onOpenProject(project), 440);
 
-      const spark = document.createElement('div');
-      spark.className = 'orbit-spark';
-      spark.style.left = centerX + 'px';
-      spark.style.top = centerY + 'px';
-      document.body.appendChild(spark);
+    grow.finished.then(() => {
+      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: 'ease-out', fill: 'forwards' })
+        .finished.then(() => el.remove());
+    }).catch(() => el.remove());
+  }
 
-      const trailDots = [];
-      const spawnTrailDot = () => {
-        const sLeft = parseFloat(spark.style.left) || centerX;
-        const sTop  = parseFloat(spark.style.top) || centerY;
+  /** Rückweg: Fläche füllt kurz den Bildschirm und schrumpft in die Scheibe. */
+  _diveBack() {
+    const d = this._dive;
+    this._dive = null;
+    if (!d) {
+      this._orbit.classList.remove('is-diving');
+      return;
+    }
 
-        const dot = document.createElement('div');
-        dot.className = 'orbit-trail-dot';
-        dot.style.left = sLeft + 'px';
-        dot.style.top  = sTop + 'px';
-        document.body.appendChild(dot);
-        trailDots.push(dot);
+    const { el, size } = this._divePortal(d.cx, d.cy);
+    const s0 = d.dia / size;
+    el.style.opacity = '0';
 
-        setTimeout(() => {
-          dot.remove();
-          const idx = trailDots.indexOf(dot);
-          if (idx >= 0) trailDots.splice(idx, 1);
-        }, 700);
-      };
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          spark.classList.add('is-flying');
-          spark.style.left = vpCx + 'px';
-          spark.style.top  = vpCy + 'px';
-          spark.style.transform = 'scale(0.55)';
-        });
-      });
-
-      const trailInterval = setInterval(spawnTrailDot, 22);
-
-      setTimeout(() => {
-        clearInterval(trailInterval);
-        spawnTrailDot();
-        spark.classList.add('is-arrived');
-
-        const core = this.root.querySelector('.orbit-core');
-        if (core) {
-          core.classList.add('is-pulsing');
-          setTimeout(() => core.classList.remove('is-pulsing'), 900);
-        }
-
-        const burst = document.createElement('div');
-        burst.className = 'orbit-warp-burst';
-        document.body.appendChild(burst);
-        setTimeout(() => burst.remove(), 1200);
-
-        this.onOpenProject(project);
-
-        setTimeout(() => {
-          spark.remove();
-          trailDots.forEach(d => d.remove());
-          trailDots.length = 0;
-
-          btn.classList.remove('is-warping', 'is-shrinking');
-          btn.style.position = '';
-          btn.style.left = '';
-          btn.style.top = '';
-          btn.style.width = '';
-          btn.style.height = '';
-          btn.style.marginLeft = '';
-          btn.style.marginTop = '';
-          btn.style.transform = '';
-          btn.style.zIndex = '';
-          btn.style.pointerEvents = '';
-          btn.style.opacity = '';
-          btn.style.visibility = '';
-
-          if (itemEntry) itemEntry.warping = false;
-          this._widgetsDirty = true;
-        }, 400);
-      }, 420);
-    }, 320);
+    // Erst deckt die Fläche das ausblendende Modul zu, dann schrumpft sie
+    const fadeIn = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out', fill: 'forwards' });
+    fadeIn.finished.then(() => {
+      this._orbit.classList.remove('is-diving');
+      return el.animate(
+        [{ transform: 'scale(1)' }, { transform: `scale(${s0})` }],
+        { duration: 600, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' }
+      ).finished;
+    }).then(() => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' }).finished)
+      .then(() => el.remove())
+      .catch(() => el.remove());
   }
 
   _showToast(text) {
