@@ -1,3 +1,5 @@
+import { prefersReducedMotion } from './utils.js';
+
 /**
  * Dezenter Sternenhimmel als Hintergrund-Canvas.
  *
@@ -45,7 +47,7 @@ export class StarField {
     this.speed = 1;
     this._raf = null;
     this._last = 0;
-    this._reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this._reduced = prefersReducedMotion();
 
     // Leuchtender Stern als vorgerenderte Grafik – shadowBlur pro Frame wäre teuer
     this._glowSprites = COLORS.stars.map(c => this._makeGlow(c));

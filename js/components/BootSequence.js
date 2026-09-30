@@ -1,4 +1,5 @@
 import { ViewManager } from '../core/ViewManager.js';
+import { prefersReducedMotion } from '../core/utils.js';
 
 /**
  * Startsequenz der Startseite:
@@ -18,17 +19,12 @@ const T = {
 };
 
 export class BootSequence {
-  static isReduced() {
-    return !!(window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  }
-
   constructor(orbit) {
     this.orbit = orbit;
     this._timers = [];
     this._done = false;
 
-    if (BootSequence.isReduced()) {
+    if (prefersReducedMotion()) {
       this._finishUi();
       return;
     }

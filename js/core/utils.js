@@ -18,3 +18,34 @@ export const Mat3 = {
 export const lerp = (a, b, t) => a + (b - a) * t;
 
 export const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* ---------- Mathe & Easing (Orbit, Erde) ---------- */
+export const clamp01 = (v) => Math.max(0, Math.min(1, v));
+export const easeInCubic = (t) => t * t * t;
+export const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+export const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+export const easeOutBack = (t, s = 1.2) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
+export const rand = (min, max) => min + Math.random() * (max - min);
+// 0 bei x = edge0, 1 bei x = edge1, weich dazwischen (edge0 > edge1 erlaubt)
+export const smoothstep = (edge0, edge1, x) => {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+};
+
+/* ---------- Umgebung ---------- */
+export const prefersReducedMotion = () =>
+  !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/** Lädt ein Skript genau einmal nach (z. B. hls.js erst bei Bedarf). */
+const _scripts = new Map();
+export const loadScript = (src) => {
+  if (!_scripts.has(src)) {
+    _scripts.set(src, new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = () => resolve();
+      el.onerror = () => { _scripts.delete(src); reject(new Error('Skript nicht ladbar: ' + src)); };
+      document.head.appendChild(el);
+    }));
+  }
+  return _scripts.get(src);
+};
