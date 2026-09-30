@@ -1,0 +1,55 @@
+/* =========================================================
+   STARTSEQUENZ – Oberfläche ist zunächst unsichtbar und
+   blendet gestaffelt ein, sobald body.is-booting fällt.
+   ========================================================= */
+
+body.is-booted #nav-bar,
+body.is-booted #bg-controls {
+  transition: opacity 0.9s ease 0.1s;
+}
+
+body.is-booted .weather-label { transition-delay: 0.3s; }
+body.is-booted .home-clock    { transition-delay: 0.5s; }
+
+body.is-booting #nav-bar,
+body.is-booting #bg-controls,
+body.is-booting .weather-label,
+body.is-booting .home-clock {
+  opacity: 0;
+}
+
+/* Statuszeile unter der Erde */
+#boot-status {
+  position: fixed;
+  left: 50%;
+  bottom: 14vh;
+  z-index: 4;
+  transform: translateX(-50%);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  color: var(--midnight-neon);
+  text-shadow: 0 0 10px rgba(0, 229, 191, 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#boot-status.is-on {
+  animation: bootStatus 1.3s ease both;
+}
+
+#boot-status.is-off {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+@keyframes bootStatus {
+  0%   { opacity: 0; filter: blur(6px); letter-spacing: 0.7em; }
+  35%  { opacity: 0.85; filter: none; letter-spacing: 0.4em; }
+  100% { opacity: 0.55; filter: none; letter-spacing: 0.4em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #boot-status { display: none; }
+}

@@ -48,11 +48,20 @@ const OUTRO = {
 };
 const OUTRO_REDUCED = { fly: 300, stagger: 0 };
 
+// Aufbau der Erde beim Start (ms): Linien ziehen sich, Land blendet ein
+const BOOT_EARTH_MS = 2400;
+
 export class OrbitMenu {
   constructor(rootEl, options = {}) {
     this.root = rootEl;
     this.onOpenProject = options.onOpenProject || (() => {});
     this.isOpenable = options.isOpenable || (() => false);
+
+    const reducedMotion = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    // Startsequenz: Erde bleibt leer, bis playStartup() sie aufbaut
+    this._bootHold = !!options.startHidden && !reducedMotion;
+    this._bootStart = null;
 
     this._items = [];
     this._toast = null;
@@ -510,7 +519,8 @@ export class OrbitMenu {
     const landMat = new THREE.ShaderMaterial({
       uniforms: {
         landMap: { value: landTex },
-        uBoost: { value: 1 }   // > 1 = Land "lädt sich auf" (Expand-Animation)
+        uBoost: { value: 1 },  // > 1 = Land "lädt sich auf" (Expand-Animation)
+        uFade: { value: 1 }    // Startaufbau: 0 = unsichtbar
       },
       vertexShader: `
         varying vec2 vUv;
@@ -524,6 +534,7 @@ export class OrbitMenu {
       fragmentShader: `
         uniform sampler2D landMap;
         uniform float uBoost;
+        uniform float uFade;
         varying vec2 vUv;
         varying vec3 vNormal;
         void main() {
@@ -531,7 +542,7 @@ export class OrbitMenu {
           // Zur Bildmitte hin heller, zum Rand hin dunkler/transparenter → Plastizität
           float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
           float light = 0.55 + 0.45 * facing;
-          float alpha = c.a * (0.5 + 0.5 * facing) * (0.85 + 0.15 * uBoost);
+          float alpha = c.a * (0.5 + 0.5 * facing) * (0.85 + 0.15 * uBoost) * uFade;
           gl_FragColor = vec4(c.rgb * light * uBoost, min(alpha, 1.0));
         }
       `,
@@ -895,6 +906,19 @@ export class OrbitMenu {
       landMat.uniforms.uBoost.value = fx.boost;
       atmoMat.uniforms.uIntensity.value = fx.atmo;
 
+      // Startaufbau: Linien ziehen sich, Land/Atmosphäre/Städte blenden danach ein
+      const boot = this._bootValue(now);
+      const lineT = easeInOutSine(boot);
+      const fade = smoothstep(0.3, 1, boot);
+      [baseLines, glowLines].forEach((l) => {
+        const cnt = l.geometry.attributes.position ? l.geometry.attributes.position.count : 0;
+        l.geometry.setDrawRange(0, lineT >= 1 ? Infinity : Math.floor(cnt * lineT / 2) * 2);
+      });
+      landMat.uniforms.uFade.value = fade;
+      nightMat.uniforms.uAmount.value = smoothstep(0.5, 1, boot);
+      atmoMat.uniforms.uIntensity.value *= fade;
+      this._cityMat.opacity = smoothstep(0.6, 1, boot);
+
       earthGroup.rotation.y += dt * (0.12 + fx.spin);
 
       if (this._cityMat) {
@@ -908,10 +932,10 @@ export class OrbitMenu {
       }
 
       // Berlin: Punkt atmet, Ring läuft alle 3 s aus
-      homeMat.size = 0.45 + Math.sin(t * 2.4) * 0.1;
+      homeMat.size = (0.45 + Math.sin(t * 2.4) * 0.1) * smoothstep(0.75, 1, boot);
       const ph = (t % 3) / 3;
       pulseRing.scale.setScalar(1 + ph * 4.5);
-      pulseMat.opacity = (1 - ph) * (1 - ph) * 0.8;
+      pulseMat.opacity = (1 - ph) * (1 - ph) * 0.8 * smoothstep(0.75, 1, boot);
 
       renderer.render(scene, camera);
     };
@@ -951,6 +975,32 @@ export class OrbitMenu {
     if (!reduced) this._spawnChargeFx(T.charge);
 
     this._later(() => this._release(T, reduced), T.charge);
+  }
+
+  /* ============================================================
+     STARTSEQUENZ – Erde baut sich auf (Linien ziehen, Land blendet ein).
+     Das Öffnen/Schließen der Widgets steuert der Aufrufer über
+     expand() / collapse().
+     ============================================================ */
+  playStartup() {
+    this._bootHold = false;
+    this._bootStart = performance.now();
+  }
+
+  /** Startaufbau sofort beenden (Nutzer hat eingegriffen). */
+  skipStartup() {
+    this._bootHold = false;
+    this._bootStart = null;
+  }
+
+  get isExpanded() { return this._expanded; }
+  get isBusy() { return this._transitioning; }
+  /** Nutzer fasst gerade das Menü an (Drag oder Hover auf einem Widget). */
+  get isInUse() { return this._isDragging || this._paused; }
+
+  _bootValue(now) {
+    if (this._bootStart === null) return this._bootHold ? 0 : 1;
+    return clamp01((now - this._bootStart) / BOOT_EARTH_MS);
   }
 
   _later(fn, ms) {
