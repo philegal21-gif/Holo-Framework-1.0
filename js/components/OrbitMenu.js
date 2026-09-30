@@ -1848,6 +1848,25 @@ export class OrbitMenu {
     st.setProperty('--dive-rf', rf + 'px');
   }
 
+  /**
+   * Ruft fn auf, sobald alle laufenden Einflug-Animationen (dive*) wirklich fertig sind.
+   * Ein fester Timer reicht nicht: Beim Öffnen eines Moduls starten die Animationen
+   * oft später als gedacht (Hauptthread belegt), und die Klasse würde sie mittendrin abschneiden.
+   */
+  _whenDiveDone(fn, maxMs = 2000) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const anims = [];
+      const stage = document.getElementById('orbit-stage');
+      if (stage) anims.push(...stage.getAnimations());
+      document.querySelectorAll('.module-slot').forEach((sl) => {
+        anims.push(...sl.getAnimations({ subtree: true }));
+      });
+      const dive = anims.filter((a) => /^dive/.test(a.animationName || ''));
+      const timeout = new Promise((r) => setTimeout(r, maxMs));
+      Promise.race([Promise.allSettled(dive.map((a) => a.finished)), timeout]).then(fn);
+    }));
+  }
+
   _diveInto(project, btn) {
     const reduced = !!(window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1865,7 +1884,6 @@ export class OrbitMenu {
       return;
     }
 
-    clearTimeout(this._diveTimer);
     this._setDiveVars(d);
     this._rotFrozen = true;
     this._spin = { x: 0, y: 0 };
@@ -1882,9 +1900,10 @@ export class OrbitMenu {
     }
     this._dive = d;
 
-    this._diveTimer = setTimeout(() => {
-      document.body.classList.remove('is-diving-in');
-    }, 760);
+    // Klasse erst entfernen, wenn die Animationen fertig sind (und nicht schon zurückgeflogen wurde)
+    this._whenDiveDone(() => {
+      if (this._dive === d) document.body.classList.remove('is-diving-in');
+    });
   }
 
   /** Rückweg: Der Kreis schließt sich auf die Scheibe, der Orbit fliegt zurück. */
@@ -1896,24 +1915,25 @@ export class OrbitMenu {
       return;
     }
 
-    clearTimeout(this._diveTimer);
     this._setDiveVars(d);
     const b = document.body;
     b.classList.remove('is-diving-in');
     b.classList.add('is-diving-out');
     if (d.slot) d.slot.classList.add('is-leaving');
 
-    this._diveTimer = setTimeout(() => {
-      b.classList.remove('is-diving-out');
-      this._rotFrozen = false;   // Orbit und Erde laufen erst jetzt wieder weiter
-      this._widgetsDirty = true;
-      if (d.slot) {
+    this._whenDiveDone(() => {
+      if (!this._dive) {   // nicht schon wieder hineingeflogen
+        b.classList.remove('is-diving-out');
+        this._rotFrozen = false;   // Orbit und Erde laufen erst jetzt wieder weiter
+        this._widgetsDirty = true;
+      }
+      if (d.slot && d.slot !== (this._dive && this._dive.slot)) {
         // Verlassenes Modul bleibt noch kurz unsichtbar, bis seine Ausblend-Transition durch ist
         d.slot.style.visibility = 'hidden';
         d.slot.classList.remove('is-leaving', 'no-enter-anim');
         setTimeout(() => { d.slot.style.visibility = ''; }, 950);
       }
-    }, 740);
+    });
   }
 
   _showToast(text) {
