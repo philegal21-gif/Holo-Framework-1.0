@@ -600,12 +600,59 @@ body.is-diving-in .module-slot.is-active > .module-inner {
 }
 
 .module-slot.is-leaving > .module-inner {
-  transform: none !important;
-  opacity: 1 !important;
-  filter: none !important;
+  transform: none;
+  opacity: 1;
+  filter: none;
   visibility: visible !important;
   transition: none !important;
-  animation: none !important;
+  animation: diveUnsettle 720ms ease-in both;
+}
+
+@keyframes diveUnsettle {
+  from { transform: none; filter: none; opacity: 1; }
+  to   { transform: scale(1.1); filter: blur(8px); opacity: 0.5; }
+}
+
+/* Scheiben-Farbe: Beim Schließen färbt sich der Kreis auf das dunkle Petrol der
+   Scheibe (samt Glanzlicht), beim Aufdecken startet er in dieser Farbe und gibt
+   dann das Modul frei. Der Kreis wirkt dadurch wie die Scheibe selbst. */
+body.is-diving-in .module-slot.is-active::after,
+.module-slot.is-leaving::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background:
+    radial-gradient(circle calc(var(--dive-r0) * 1.1)
+        at calc(var(--dive-x) - var(--dive-r0) * 0.32) calc(var(--dive-y) - var(--dive-r0) * 0.48),
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.12) 18%,
+      transparent 70%),
+    radial-gradient(circle var(--dive-rf) at var(--dive-x) var(--dive-y),
+      rgba(0, 73, 83, 0.94) 0%,
+      rgba(2, 14, 18, 0.985) 30%,
+      #010709 100%);
+}
+
+body.is-diving-in .module-slot.is-active::after {
+  animation: diveTintOut 720ms ease-out both;
+}
+
+.module-slot.is-leaving::after {
+  animation: diveTintIn 720ms ease-in both;
+}
+
+@keyframes diveTintOut {
+  0%   { opacity: 1; }
+  60%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes diveTintIn {
+  0%   { opacity: 0; }
+  35%  { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 @keyframes diveClose {
