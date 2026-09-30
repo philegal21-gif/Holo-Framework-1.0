@@ -4,6 +4,7 @@ import { ViewManager } from '../core/ViewManager.js';
 import { audio } from '../core/AudioEngine.js';
 import { Mat3 } from '../core/utils.js';
 import { userLocation } from '../core/Location.js';
+import { PLANET_STYLE, makePlanetTexture } from './planets.js';
 
 // Rotationsmatrix gegen Rundungsdrift wieder orthonormal machen (Gram-Schmidt)
 const orthonormalize = (m) => {
@@ -202,7 +203,18 @@ export class OrbitMenu {
       item.dataset.target = project.target || 'placeholder';
       item.title = project.name;
 
+      const planet = PLANET_STYLE[project.id] || PLANET_STYLE.add;
+      item.style.setProperty('--ps', planet.size);
+      item.style.setProperty('--spin', planet.spin + 's');
+      item.style.setProperty('--rim', planet.rim);
+      item.style.setProperty('--base', planet.base);
+
       item.innerHTML = `
+        <div class="orbit-planet-wrap">
+          ${planet.ring ? '<div class="orbit-ring orbit-ring-back"></div>' : ''}
+          <div class="orbit-planet"></div>
+          ${planet.ring ? '<div class="orbit-ring orbit-ring-front"></div>' : ''}
+        </div>
         <div class="orbit-item-inner">
           <i class="${project.icon}"></i>
           <span class="orbit-item-label">${project.name}</span>
@@ -232,6 +244,17 @@ export class OrbitMenu {
         warping: false
       });
     });
+
+    // Planeten-Texturen erst nach dem ersten Paint erzeugen (kurze Rechenzeit),
+    // bis dahin zeigen die Kugeln ihre Grundfarbe
+    setTimeout(() => {
+      this._items.forEach(({ el, project }) => {
+        const st = PLANET_STYLE[project.id];
+        if (!st || !st.kind) return;
+        const url = makePlanetTexture(st.kind, st.seed);
+        if (url) el.style.setProperty('--tex', `url(${url})`);
+      });
+    }, 0);
 
     this._toast = document.createElement('div');
     this._toast.id = 'orbit-toast';
