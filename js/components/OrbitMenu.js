@@ -43,10 +43,10 @@ const INTRO_REDUCED = { charge: 250, fly: 420, stagger: 0 };
 
 // Zeitplan der Schließanimation (ms)
 const OUTRO = {
-  fly: 620,       // Flugdauer eines Widgets zurück in die Erde
-  stagger: 35     // Versatz zwischen den Widgets
+  fly: 310,       // Flugdauer eines Widgets zurück in die Erde
+  stagger: 18     // Versatz zwischen den Widgets
 };
-const OUTRO_REDUCED = { fly: 300, stagger: 0 };
+const OUTRO_REDUCED = { fly: 150, stagger: 0 };
 
 // Aufbau der Erde beim Start (ms): Linien ziehen sich, Land blendet ein
 const BOOT_EARTH_MS = 2400;
