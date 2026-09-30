@@ -1,5 +1,6 @@
 import { ViewManager } from '../core/ViewManager.js';
 import { weather } from '../modules/WeatherModule.js';
+import { userLocation } from '../core/Location.js';
 
 /**
  * Wetter-Label und Uhr als schwebende Holo-Texte auf der Startseite – reiner Text mit
@@ -31,7 +32,7 @@ export class HomeTiles {
           <div class="weather-label-body" data-weather-widget>
             <div class="weather-label-main">
               <span class="weather-label-icon" data-weather-icon><i class="fa-solid fa-cloud-sun"></i></span>
-              <span class="weather-label-place">Berlin</span>
+              <span class="weather-label-place" data-weather-location>${userLocation.get().name}</span>
               <span class="weather-label-temp"><span data-weather-temperature>--</span>°</span>
             </div>
             <div class="weather-label-condition" data-weather-condition>Lade Wetterdaten...</div>
