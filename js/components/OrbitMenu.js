@@ -49,6 +49,9 @@ const OUTRO = {
 };
 const OUTRO_REDUCED = { fly: 150, stagger: 0 };
 
+// Neigung der Erdachse zur Kamera (rad): Norden kippt nach vorn, Europa rückt ins Bild
+const EARTH_TILT = 0.6;
+
 // Aufbau der Erde beim Start (ms): Linien ziehen sich, Land blendet ein
 const BOOT_EARTH_MS = 2400;
 
@@ -326,6 +329,8 @@ export class OrbitMenu {
     container.appendChild(canvas);
 
     const earthGroup = new THREE.Group();
+    // Euler XYZ: erst Drehung um die eigene Y-Achse, dann Kippen um X → geneigte Achse
+    earthGroup.rotation.x = EARTH_TILT;
     scene.add(earthGroup);
 
     // ============================================================
