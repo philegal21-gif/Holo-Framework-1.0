@@ -42,9 +42,9 @@
 
 #brand-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-weight: 600;
+  font-weight: 500;
   font-size: .92rem;
-  letter-spacing: .18em;
+  letter-spacing: .14em;
   text-transform: uppercase;
   color: rgba(226,232,240,0.75);
   display: flex;

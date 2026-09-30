@@ -61,7 +61,6 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   gap: 4px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--silver-bright);
-  text-transform: uppercase;
   animation: weatherEnter 1.6s ease 0.4s backwards;
 }
 
@@ -74,8 +73,9 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
   display: flex;
   align-items: baseline;
   gap: 10px;
-  font-size: 0.72rem;
-  letter-spacing: 0.22em;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .weather-label-icon {
@@ -84,15 +84,15 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
 }
 
 .weather-label-temp {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
 .weather-label-condition {
   padding-left: 1.6rem;
-  font-size: 0.56rem;
-  letter-spacing: 0.16em;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
   color: rgba(226, 232, 240, 0.65);
 }
 
@@ -159,8 +159,8 @@ body:has(.orbit.is-expanded) .home-clock { opacity: 0.2; }
 
 .home-clock-date {
   margin-top: 8px;
-  font-size: 0.56rem;
-  letter-spacing: 0.22em;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
   color: rgba(226, 232, 240, 0.65);
 }
 

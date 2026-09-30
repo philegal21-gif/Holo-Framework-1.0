@@ -31,7 +31,7 @@ export class HomeTiles {
           <div class="weather-label-body" data-weather-widget>
             <div class="weather-label-main">
               <span class="weather-label-icon" data-weather-icon><i class="fa-solid fa-cloud-sun"></i></span>
-              <span class="weather-label-place">BERLIN</span>
+              <span class="weather-label-place">Berlin</span>
               <span class="weather-label-temp"><span data-weather-temperature>--</span>°</span>
             </div>
             <div class="weather-label-condition" data-weather-condition>Lade Wetterdaten...</div>
@@ -77,7 +77,7 @@ export class HomeTiles {
       last = key;
       h.textContent = pad(d.getHours());
       m.textContent = pad(d.getMinutes());
-      const wd = d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '').toUpperCase();
+      const wd = d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
       dateEl.textContent = `${wd} · ${pad(d.getDate())}.${pad(d.getMonth() + 1)}. · KW ${isoWeek(d)}`;
     };
     tick();

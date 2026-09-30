@@ -1086,25 +1086,6 @@ export class OrbitMenu {
         '--delay': '0ms',
         '--peak': '0.9'
       });
-      this._fx(this.root, 'orbit-shockwave', {
-        '--size': (R * 2.05).toFixed(0) + 'px',
-        '--end-scale': '3.6',
-        '--dur': '1250ms',
-        '--delay': '110ms',
-        '--peak': '0.4'
-      });
-
-      const sparks = window.innerWidth < 640 ? 10 : 16;
-      for (let i = 0; i < sparks; i++) {
-        this._fx(this.root, 'orbit-spark-out', {
-          '--angle': rand(0, 360).toFixed(1) + 'deg',
-          '--from': (R * rand(0.95, 1.05)).toFixed(1) + 'px',
-          '--to': (R * rand(1.5, 2.4)).toFixed(1) + 'px',
-          '--len': rand(10, 26).toFixed(1) + 'px',
-          '--dur': rand(600, 900).toFixed(0) + 'ms',
-          '--delay': rand(0, 80).toFixed(0) + 'ms'
-        });
-      }
     }
 
     this._expanded = true;

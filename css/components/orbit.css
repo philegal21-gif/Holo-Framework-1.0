@@ -210,10 +210,10 @@ body:not(.state-home) #orbit-stage {
   margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
   border-radius: 50%;
   background: radial-gradient(circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(190, 255, 236, 0.7) 18%,
-    rgba(92, 160, 171, 0.35) 42%,
-    rgba(63, 138, 150, 0.08) 62%,
+    rgba(226, 232, 240, 0.4) 0%,
+    rgba(140, 196, 206, 0.28) 18%,
+    rgba(92, 160, 171, 0.14) 42%,
+    rgba(63, 138, 150, 0.04) 62%,
     transparent 72%);
   mix-blend-mode: screen;
   z-index: 8;
@@ -231,10 +231,7 @@ body:not(.state-home) #orbit-stage {
   height: var(--size, 400px);
   margin: calc(var(--size, 400px) / -2) 0 0 calc(var(--size, 400px) / -2);
   border-radius: 50%;
-  border: 1.5px solid rgba(160, 255, 230, 0.85);
-  box-shadow:
-    0 0 24px rgba(92, 160, 171, 0.4),
-    inset 0 0 24px rgba(92, 160, 171, 0.22);
+  border: 1px solid rgba(140, 196, 206, 0.6);
   z-index: 8;
   animation: shockwave var(--dur, 950ms) cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) forwards;
 }
@@ -298,7 +295,7 @@ body:not(.state-home) #orbit-stage {
 }
 
 @keyframes widgetIgnite {
-  0%   { filter: brightness(3.2) saturate(1.4); }
+  0%   { filter: brightness(1.6); }
   100% { filter: brightness(1) saturate(1); }
 }
 
@@ -310,33 +307,28 @@ body:not(.state-home) #orbit-stage {
   position: absolute;
   top: 0;
   left: 0;
-  width: 140px;
-  height: 140px;
-  margin-left: -70px;
-  margin-top: -70px;
+  width: 84px;
+  height: 84px;
+  margin-left: -42px;
+  margin-top: -42px;
 
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
 
   padding: 0;
   border: none;
   border-radius: 50%;
 
-  background:
-    radial-gradient(circle at 50% 32%,
-      rgba(92, 160, 171, 0.28) 0%,
-      rgba(0, 85, 96, 0.32) 35%,
-      rgba(2, 14, 16, 0.85) 75%,
-      rgba(0, 6, 8, 0.95) 100%);
+  /* Flache Fläche aus dem Akzent #004953, dünner Rand, kaum Schatten */
+  background: linear-gradient(160deg,
+    rgba(0, 73, 83, 0.6) 0%,
+    rgba(2, 16, 20, 0.88) 100%);
 
-  /* Box-Shadow auf das Nötigste reduziert */
   box-shadow:
-    0 0 0 1px rgba(92, 160, 171, 0.42),
-    0 4px 12px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(226, 232, 240, 0.20);
+    0 0 0 1px rgba(92, 160, 171, 0.26),
+    0 6px 18px rgba(0, 0, 0, 0.5);
 
   color: var(--silver-pure);
   font-family: 'Space Grotesk', sans-serif;
@@ -352,8 +344,8 @@ body:not(.state-home) #orbit-stage {
   /* transform/opacity setzt der RAF-Loop jeden Frame – eine Transition
      darauf würde jede Bewegung verzögern. */
   transition:
-    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    background 0.5s ease;
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.4s ease;
 }
 
 /* --depth-opacity wird per JS pro Frame gesetzt */
@@ -365,11 +357,11 @@ body:not(.state-home) #orbit-stage {
 .orbit-item::after {
   content: "";
   position: absolute;
-  inset: -25%;
+  inset: -12%;
   border-radius: 50%;
   background: radial-gradient(circle,
-    rgba(92, 160, 171, 0.16),
-    transparent 65%);
+    rgba(0, 73, 83, 0.22),
+    transparent 70%);
   z-index: -1;
   pointer-events: none;
   /* Hinter der Erde leuchtet der Schein kaum noch */
@@ -416,61 +408,50 @@ body:not(.state-home) #orbit-stage {
 }
 
 .orbit-item i {
-  font-size: 28px;
-  color: #ffffff;
-  filter: drop-shadow(0 0 10px rgba(92, 160, 171, 0.55));
-  transition: color 0.5s ease, filter 0.5s ease, transform 0.5s ease;
+  font-size: 20px;
+  color: rgba(226, 232, 240, 0.92);
+  transition: color 0.4s ease, transform 0.4s ease;
 }
 
 .orbit-item-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.9);
+  /* Name sitzt unter dem Kreis und erscheint erst beim Überfahren */
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.95);
   white-space: nowrap;
-  max-width: 124px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-left: 0.22em;
-  transition: color 0.5s ease;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
 }
 
 .orbit-item:hover {
-  background:
-    radial-gradient(circle at 50% 32%,
-      rgba(92, 160, 171, 0.45) 0%,
-      rgba(42, 111, 122, 0.48) 35%,
-      rgba(2, 14, 16, 0.9) 75%,
-      rgba(0, 6, 8, 0.96) 100%);
+  background: linear-gradient(160deg,
+    rgba(0, 73, 83, 0.95) 0%,
+    rgba(2, 20, 24, 0.92) 100%);
 
   box-shadow:
-    0 0 0 1px rgba(92, 160, 171, 0.85),
-    0 8px 24px rgba(0, 0, 0, 0.6),
-    0 0 60px rgba(92, 160, 171, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 0 0 1px rgba(92, 160, 171, 0.7),
+    0 10px 26px rgba(0, 0, 0, 0.55);
 }
 
 .orbit-item:hover i {
   color: #ffffff;
-  filter: drop-shadow(0 0 18px rgba(92, 160, 171, 1));
-  transform: scale(1.12);
+  transform: scale(1.08);
 }
 
 .orbit-item:hover .orbit-item-label {
-  color: #ffffff;
+  opacity: 1;
 }
 
 .orbit-item[data-target="placeholder"] {
-  background:
-    radial-gradient(circle at 50% 32%,
-      rgba(63, 138, 150, 0.14) 0%,
-      rgba(2, 14, 16, 0.85) 55%,
-      rgba(0, 6, 8, 0.95) 100%);
-  box-shadow:
-    0 0 0 1px rgba(92, 160, 171, 0.22),
-    inset 0 1px 0 rgba(226, 232, 240, 0.10);
+  background: rgba(2, 14, 16, 0.85);
+  box-shadow: 0 0 0 1px rgba(92, 160, 171, 0.18);
 }
 
 .orbit.is-expanded .orbit-item[data-target="placeholder"] {
@@ -479,10 +460,6 @@ body:not(.state-home) #orbit-stage {
 
 .orbit-item[data-target="placeholder"] i {
   color: rgba(226, 232, 240, 0.7);
-}
-
-.orbit-item[data-target="placeholder"] .orbit-item-label {
-  color: rgba(226, 232, 240, 0.6);
 }
 
 .orbit.is-expanded .orbit-item[data-target="placeholder"]:hover {
@@ -503,9 +480,7 @@ body:not(.state-home) #orbit-stage {
 }
 
 .orbit-item[data-target="empty"]:hover {
-  box-shadow:
-    0 0 0 1px rgba(92, 160, 171, 0.5),
-    0 0 50px rgba(92, 160, 171, 0.2);
+  box-shadow: 0 0 0 1px rgba(92, 160, 171, 0.5);
 }
 
 .orbit-item[data-target="empty"] i {
@@ -707,10 +682,9 @@ body:not(.state-home) #orbit-stage {
   border-radius: 999px;
 
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: #e2e8f0;
 
   opacity: 0;
@@ -738,20 +712,14 @@ body:not(.state-home) #orbit-stage {
   }
 
   .orbit-item {
-    width: 100px;
-    height: 100px;
-    margin-left: -50px;
-    margin-top: -50px;
-    gap: 5px;
+    width: 64px;
+    height: 64px;
+    margin-left: -32px;
+    margin-top: -32px;
   }
 
-  .orbit-item i { font-size: 20px; }
-  .orbit-item-label {
-    font-size: 9px;
-    letter-spacing: 0.16em;
-    max-width: 90px;
-    padding-left: 0.16em;
-  }
+  .orbit-item i { font-size: 17px; }
+  .orbit-item-label { font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
