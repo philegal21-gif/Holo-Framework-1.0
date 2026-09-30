@@ -107,7 +107,7 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   });
 
   // =========================================================
-  // HOME TILES (Wetter)
+  // WETTER-LABEL (Startseite)
   // =========================================================
 
   new HomeTiles();

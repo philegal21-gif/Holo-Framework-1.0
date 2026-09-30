@@ -2,14 +2,15 @@ import { ViewManager } from '../core/ViewManager.js';
 import { weather } from '../modules/WeatherModule.js';
 
 /**
- * Dezente Glas-Kacheln hinter der Erde (Wetter) – reine Anzeige,
- * ohne Interaktion. Liegen unter #stage, Erde und Orbit ziehen darüber.
+ * Wetter als schwebendes Holo-Label auf der Startseite – reiner Text mit
+ * feiner Leitlinie, ohne Kasten und ohne Interaktion. Liegt unter #stage,
+ * Erde und Orbit ziehen darüber.
  *
- * Aufbau je Kachel:
- *   .glass-tile          → Position, Parallaxe (Maus) + Ein-/Ausblenden
- *     .glass-tile-float  → Schwebe-Animation (eigene Ebene, damit sich
- *                          die transforms nicht überschreiben)
- *       .glass-tile-body → Glas-Fläche
+ * Aufbau:
+ *   .weather-label          → Position, Parallaxe (Maus) + Ein-/Ausblenden
+ *     .weather-label-float  → Schwebe-Animation (eigene Ebene, damit sich
+ *                             die transforms nicht überschreiben)
+ *       [data-weather-widget] → Daten-Anker für WeatherModule
  *
  * Sichtbar nur im State HOME – das Ausblenden steckt in home-tiles.css.
  */
@@ -25,26 +26,29 @@ export class HomeTiles {
     this.root.id = 'home-tiles';
     this.root.setAttribute('aria-hidden', 'true');
     this.root.innerHTML = `
-      ${this._tileHTML('weather', weather.buildWidgetHTML())}
+      <div class="weather-label">
+        <div class="weather-label-float">
+          <div class="weather-label-body" data-weather-widget>
+            <div class="weather-label-main">
+              <span class="weather-label-icon" data-weather-icon><i class="fa-solid fa-cloud-sun"></i></span>
+              <span class="weather-label-place">BERLIN</span>
+              <span class="weather-label-temp"><span data-weather-temperature>--</span>°</span>
+            </div>
+            <div class="weather-label-condition" data-weather-condition>Lade Wetterdaten...</div>
+            <div class="weather-label-line"></div>
+          </div>
+        </div>
+      </div>
     `;
     parent.appendChild(this.root);
 
-    weather.bindWidget(this.root.querySelector('.glass-tile--weather'));
+    weather.bindWidget(this.root.querySelector('.weather-label'));
 
     this._bindPointer();
   }
 
-  _tileHTML(type, content) {
-    return `
-      <section class="glass-tile glass-tile--${type}">
-        <div class="glass-tile-float">
-          <div class="glass-tile-body">${content}</div>
-        </div>
-      </section>`;
-  }
-
   _bindPointer() {
-    // Parallaxe: Kacheln driften leicht gegen die Mausbewegung
+    // Parallaxe: Label driftet leicht gegen die Mausbewegung
     window.addEventListener('mousemove', (e) => {
       if (ViewManager.getState() !== 'HOME') return;
       this._targetX = (e.clientX / window.innerWidth) * 2 - 1;
