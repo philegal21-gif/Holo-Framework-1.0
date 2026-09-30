@@ -729,11 +729,15 @@ export class OrbitMenu {
     // Kleine Lichtpunkte um die Großstädte (Dichte nach Einwohnern), nur
     // über Land (Landmaske aus landCanvas) und nur auf der Nachtseite.
     // ============================================================
+    // Doppelte Auflösung der Landmaske: Lichter sind feine Einzelpunkte
+    const LIGHT_W = 4096;
+    const LIGHT_H = 2048;
     const lightsCanvas = document.createElement('canvas');
-    lightsCanvas.width = LAND_W;
-    lightsCanvas.height = LAND_H;
+    lightsCanvas.width = LIGHT_W;
+    lightsCanvas.height = LIGHT_H;
     const lightsCtx = lightsCanvas.getContext('2d');
     const lightsTex = new THREE.CanvasTexture(lightsCanvas);
+    lightsTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
     // Feste Zufallsfolge → bei jedem Start dasselbe Bild
     const seeded = (seed) => () => {
@@ -747,28 +751,68 @@ export class OrbitMenu {
     rebuildLights = () => {
       const rnd = seeded(7);
       const land = landCtx.getImageData(0, 0, LAND_W, LAND_H).data;
-      lightsCtx.clearRect(0, 0, LAND_W, LAND_H);
-      lightsCtx.globalCompositeOperation = 'lighter';
+      const ctx = lightsCtx;
+      ctx.clearRect(0, 0, LIGHT_W, LIGHT_H);
+      ctx.globalCompositeOperation = 'lighter';
 
+      // Ein Lichtpunkt (1 px) bei Breite/Länge; Ozean wird verworfen
+      const dot = (la, lo, alpha) => {
+        const x = Math.floor(((lo + 180) / 360) * LIGHT_W);
+        const y = Math.floor(((90 - la) / 180) * LIGHT_H);
+        if (x < 0 || x >= LIGHT_W || y < 0 || y >= LIGHT_H) return;
+        if (land[((y >> 1) * LAND_W + (x >> 1)) * 4 + 3] < 40) return;
+        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+        ctx.fillRect(x, y, 1, 1);
+      };
+      const lonScale = (lat) => 1 / Math.max(0.35, Math.cos(lat * Math.PI / 180));
+
+      // 1) Stadtkern + Vororte + Satellitenorte
       CITY_LIGHTS.forEach(([lat, lon, pop]) => {
-        const spread = 0.18 + 0.2 * Math.sqrt(pop);        // Grad, Streuung des Stadtrands
-        const count = Math.round(14 * Math.pow(pop, 0.65) + 8);
-        for (let i = 0; i < count; i++) {
-          const la = lat + gauss(rnd) * spread * 0.55;
-          const lo = lon + gauss(rnd) * spread / Math.max(0.35, Math.cos(lat * Math.PI / 180));
-          const x = Math.round(((lo + 180) / 360) * LAND_W);
-          const y = Math.round(((90 - la) / 180) * LAND_H);
-          if (x < 0 || x >= LAND_W || y < 0 || y >= LAND_H) continue;
-          if (land[(y * LAND_W + x) * 4 + 3] < 40) continue;   // Ozean: kein Licht
-          const r = 0.6 + rnd() * 0.9;
-          const a = 0.2 + rnd() * 0.55;
-          const g = lightsCtx.createRadialGradient(x, y, 0, x, y, r * 2);
-          g.addColorStop(0, `rgba(255,255,255,${a})`);
-          g.addColorStop(1, 'rgba(255,255,255,0)');
-          lightsCtx.fillStyle = g;
-          lightsCtx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+        const sigma = 0.09 + 0.085 * Math.sqrt(pop);       // Grad, Größe des Kerns
+        const core = Math.round(120 * Math.pow(pop, 0.8) + 60);
+
+        for (let i = 0; i < core; i++) {
+          // Mischung: dichter Kern, lockerer Gürtel drumherum
+          const wide = rnd() < 0.35 ? 2.4 : 1;
+          dot(lat + gauss(rnd) * sigma * 0.6 * wide,
+              lon + gauss(rnd) * sigma * lonScale(lat) * wide,
+              0.18 + rnd() * 0.5);
+        }
+
+        // Satellitenorte im Umland
+        const sats = 2 + Math.round(Math.sqrt(pop));
+        for (let k = 0; k < sats; k++) {
+          const ang = rnd() * Math.PI * 2;
+          const d = sigma * (1.8 + rnd() * 2.6);
+          const sla = lat + Math.sin(ang) * d * 0.6;
+          const slo = lon + Math.cos(ang) * d * lonScale(lat);
+          const n = Math.round(14 + 10 * Math.sqrt(pop) * rnd());
+          for (let i = 0; i < n; i++) {
+            dot(sla + gauss(rnd) * sigma * 0.22,
+                slo + gauss(rnd) * sigma * 0.22 * lonScale(lat),
+                0.15 + rnd() * 0.4);
+          }
         }
       });
+
+      // 2) Verbindungen zwischen benachbarten Städten (Straßen, Bahnlinien)
+      for (let i = 0; i < CITY_LIGHTS.length; i++) {
+        for (let j = i + 1; j < CITY_LIGHTS.length; j++) {
+          const [la1, lo1, p1] = CITY_LIGHTS[i];
+          const [la2, lo2, p2] = CITY_LIGHTS[j];
+          const dla = la2 - la1;
+          const dlo = (lo2 - lo1) * Math.cos(((la1 + la2) / 2) * Math.PI / 180);
+          const dist = Math.hypot(dla, dlo);
+          if (dist > 3.4 || dist < 0.25) continue;
+          const n = Math.round(Math.sqrt(Math.min(p1, p2)) * dist * 38);
+          for (let k = 0; k < n; k++) {
+            const t = rnd();
+            dot(la1 + dla * t + gauss(rnd) * 0.03,
+                lo1 + (lo2 - lo1) * t + gauss(rnd) * 0.03 * lonScale((la1 + la2) / 2),
+                0.12 + rnd() * 0.3);
+          }
+        }
+      }
       lightsTex.needsUpdate = true;
     };
     rebuildLights();
@@ -804,7 +848,10 @@ export class OrbitMenu {
           float night = smoothstep(0.0, -0.2, d);
           float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
           float fade = 0.3 + 0.7 * smoothstep(0.0, 0.45, facing);
-          float l = texture2D(uLights, vUv).a * night * fade * uAmount;
+          // scharfe Punkte + weicher Stadtschein (unscharfe Mip-Stufe)
+          float sharp = texture2D(uLights, vUv).a;
+          float glow = texture2D(uLights, vUv, 3.5).a;
+          float l = (sharp * 1.0 + glow * 1.05) * night * fade * uAmount;
           gl_FragColor = vec4(uColor, min(l, 1.0));
         }
       `,
