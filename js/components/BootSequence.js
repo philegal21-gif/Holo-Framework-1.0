@@ -37,7 +37,14 @@ export class BootSequence {
     ['pointerdown', 'keydown', 'wheel'].forEach((evt) =>
       window.addEventListener(evt, this._skip, { capture: true, passive: true, once: true }));
 
-    orbit.playStartup();
+    // Start erst, wenn die Erd-Texturen da sind (maximal 6 s warten)
+    Promise.race([orbit.ready, new Promise((r) => setTimeout(r, 6000))])
+      .then(() => this._begin());
+  }
+
+  _begin() {
+    if (this._done) return;
+    this.orbit.playStartup();
     this._at(T.ui, () => this._finishUi());
     this._at(T.open, () => this._openOrbit());
   }

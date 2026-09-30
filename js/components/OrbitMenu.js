@@ -350,18 +350,6 @@ export class OrbitMenu {
     scene.add(earthGroup);
 
     // ============================================================
-    // UNSICHTBARE KUGEL
-    // Nur Tiefenmaske: Rückseite der Konturen wird verdeckt, die Kugel
-    // selbst zeichnet keine Farbe. Alle anderen Materialien sind unlit,
-    // daher braucht die Szene kein Licht.
-    // ============================================================
-    const earthGeo = new THREE.SphereGeometry(5, 32, 32);
-    const earthMat = new THREE.MeshBasicMaterial({ colorWrite: false });
-    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    earthMesh.renderOrder = -1;
-    earthGroup.add(earthMesh);
-
-    // ============================================================
     // LAT/LON → 3D-VEKTOR
     // ============================================================
     const latLonToVec3 = (lat, lon, radius) => {
@@ -430,177 +418,27 @@ export class OrbitMenu {
     };
 
     // ============================================================
-    // FALLBACK-KONTINENTE
-    // Werden sofort gerendert, während die echten Daten laden.
-    // ============================================================
-    const CONTINENTS = [
-      [[-168,65],[-165,60],[-140,60],[-130,50],[-125,48],[-120,34],[-105,20],[-90,16],[-80,8],[-77,8],[-80,25],[-97,26],[-97,30],[-80,30],[-81,25],[-70,42],[-65,45],[-60,46],[-64,50],[-80,52],[-80,65],[-95,68],[-120,70],[-140,70],[-168,65]],
-      [[-77,8],[-80,0],[-80,-10],[-75,-15],[-70,-30],[-75,-45],[-70,-55],[-65,-55],[-60,-40],[-40,-22],[-35,-5],[-50,0],[-60,10],[-77,8]],
-      [[-10,36],[-9,43],[-2,43],[3,43],[5,48],[10,54],[25,58],[30,70],[40,70],[60,60],[50,50],[40,45],[30,46],[25,40],[15,38],[20,37],[22,40],[15,40],[12,44],[0,38],[-10,36]],
-      [[-17,15],[-17,21],[-5,36],[10,37],[25,31],[33,27],[43,12],[51,11],[42,0],[40,-10],[33,-28],[20,-35],[15,-30],[12,-15],[8,5],[-5,5],[-17,15]],
-      [[60,60],[70,73],[100,78],[140,70],[170,65],[160,55],[140,50],[130,43],[120,30],[108,12],[100,10],[100,20],[88,22],[78,8],[72,20],[60,25],[50,30],[40,45],[50,50],[60,60]],
-      [[114,-22],[114,-34],[138,-35],[150,-37],[153,-28],[142,-11],[130,-12],[128,-15],[114,-22]],
-      [[-180,-75],[-120,-75],[-60,-65],[0,-70],[60,-68],[120,-72],[180,-75]],
-      [[-55,60],[-40,65],[-20,70],[-20,80],[-50,82],[-70,75],[-55,60]],
-      [[-5,50],[-3,58],[0,52],[-5,50]],
-      [[130,32],[136,35],[141,41],[140,36],[130,32]]
-    ];
-
-    // ============================================================
-    // LANDFLÄCHEN
-    // Land wird in eine equirektangulare Canvas-Textur gezeichnet
-    // (u = (lon+180)/360, v = (90-lat)/180 – passt zu SphereGeometry
-    // und latLonToVec3). Meere bleiben alpha = 0 → transparent.
-    // ============================================================
-    const LAND_W = 2048;
-    const LAND_H = 1024;
-    const landCanvas = document.createElement('canvas');
-    landCanvas.width = LAND_W;
-    landCanvas.height = LAND_H;
-    const landCtx = landCanvas.getContext('2d');
-
-    const traceRing = (ring, offsetLon) => {
-      if (!ring || ring.length < 3) return;
-      // Sprünge über den Antimeridian auflösen, sonst entstehen Streifen quer über die Karte
-      const pts = [];
-      let shift = 0;
-      for (let i = 0; i < ring.length; i++) {
-        const lon = ring[i][0];
-        const lat = ring[i][1];
-        if (i > 0) {
-          const d = lon - ring[i - 1][0];
-          if (d > 180) shift -= 360;
-          else if (d < -180) shift += 360;
-        }
-        pts.push([lon + shift, lat]);
-      }
-      // Ring umschließt einen Pol (Antarktis) → über den Pol schließen
-      const first = pts[0];
-      const last = pts[pts.length - 1];
-      if (Math.abs(last[0] - first[0]) > 180) {
-        const meanLat = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-        const poleLat = meanLat < 0 ? -90 : 90;
-        pts.push([last[0], poleLat], [first[0], poleLat]);
-      }
-      pts.forEach(([lon, lat], i) => {
-        const x = ((lon + offsetLon + 180) / 360) * LAND_W;
-        const y = ((90 - lat) / 180) * LAND_H;
-        if (i === 0) landCtx.moveTo(x, y);
-        else landCtx.lineTo(x, y);
-      });
-      landCtx.closePath();
-    };
-
-    const landTex = new THREE.CanvasTexture(landCanvas);
-    landTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-    // polygons: Array von Polygonen, jedes ein Array von Ringen (Außenring + Löcher)
-    const drawLand = (polygons) => {
-      const ctx = landCtx;
-      ctx.clearRect(0, 0, LAND_W, LAND_H);
-      ctx.beginPath();
-      // Kopien bei ±360° fangen Polygone ab, die über den Kartenrand ragen
-      polygons.forEach(rings => rings.forEach(ring => {
-        traceRing(ring, -360);
-        traceRing(ring, 0);
-        traceRing(ring, 360);
-      }));
-
-      // Grundfüllung: von Nord nach Süd leicht verlaufend
-      const grad = ctx.createLinearGradient(0, 0, 0, LAND_H);
-      grad.addColorStop(0.0, 'rgba(0, 110, 125, 0.62)');
-      grad.addColorStop(0.5, 'rgba(0, 95, 108, 0.55)');
-      grad.addColorStop(1.0, 'rgba(0, 73, 83, 0.50)');
-      ctx.fillStyle = grad;
-      ctx.fill('nonzero');
-
-      ctx.save();
-      ctx.clip('nonzero');
-
-      // Holo-Schraffur auf dem Land
-      ctx.strokeStyle = 'rgba(140, 196, 206, 0.07)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let y = 0; y < LAND_H; y += 6) {
-        ctx.moveTo(0, y + 0.5);
-        ctx.lineTo(LAND_W, y + 0.5);
-      }
-      ctx.stroke();
-
-      // Weiche, helle Innenkante entlang der Küsten
-      ctx.beginPath();
-      polygons.forEach(rings => rings.forEach(ring => traceRing(ring, 0)));
-      ctx.strokeStyle = 'rgba(92, 160, 171, 0.45)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      ctx.restore();
-      landTex.needsUpdate = true;
-    };
-
-    const landMat = new THREE.ShaderMaterial({
-      uniforms: {
-        landMap: { value: landTex },
-        uBoost: { value: 1 },  // > 1 = Land "lädt sich auf" (Expand-Animation)
-        uFade: { value: 1 }    // Startaufbau: 0 = unsichtbar
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        void main() {
-          vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D landMap;
-        uniform float uBoost;
-        uniform float uFade;
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        void main() {
-          vec4 c = texture2D(landMap, vUv);
-          // Zur Bildmitte hin heller, zum Rand hin dunkler/transparenter → Plastizität
-          float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-          float light = 0.55 + 0.45 * facing;
-          float alpha = c.a * (0.5 + 0.5 * facing) * (0.85 + 0.15 * uBoost) * uFade;
-          gl_FragColor = vec4(c.rgb * light * uBoost, min(alpha, 1.0));
-        }
-      `,
-      transparent: true,
-      depthWrite: false
-    });
-    const landMesh = new THREE.Mesh(new THREE.SphereGeometry(5.02, 64, 64), landMat);
-    landMesh.renderOrder = 0;
-    earthGroup.add(landMesh);
-
-    drawLand(CONTINENTS.map(ring => [ring]));
-
-    // ============================================================
-    // KONTUR-MATERIALIEN
-    // Zwei Layer:
-    //   baseMat → dunkleres Grün, gibt Tiefe
-    //   glowMat → helleres Grün, additiv, dezenter Schimmer
+    // LANDESGRENZEN
+    // Dünne Linien über der Oberfläche; leise im Normalzustand, deutlicher
+    // beim Hineinzoomen (Deckkraft wird im Render-Loop gesetzt).
     // ============================================================
     const baseMat = new THREE.LineBasicMaterial({
-      color: 0x4f97a3,
+      color: 0xbfe3ea,
       transparent: true,
-      opacity: 0.7
+      opacity: 0.06,
+      depthWrite: false
     });
     const glowMat = new THREE.LineBasicMaterial({
       color: 0x7fb8c2,
       transparent: true,
-      opacity: 0.3,
-      blending: THREE.AdditiveBlending
+      opacity: 0.03,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
 
-    const baseGeo = geojsonToLineSegments(CONTINENTS, 5.04);
-    const glowGeo = geojsonToLineSegments(CONTINENTS, 5.06);
-
-    const baseLines = new THREE.LineSegments(baseGeo, baseMat);
-    const glowLines = new THREE.LineSegments(glowGeo, glowMat);
-    // Linien nach der Landfläche zeichnen
+    // Bis die Grenzdaten geladen sind, bleiben die Linien leer
+    const baseLines = new THREE.LineSegments(new THREE.BufferGeometry(), baseMat);
+    const glowLines = new THREE.LineSegments(new THREE.BufferGeometry(), glowMat);
     baseLines.renderOrder = 1;
     glowLines.renderOrder = 1;
     earthGroup.add(baseLines);
@@ -608,9 +446,7 @@ export class OrbitMenu {
 
     // ============================================================
     // ECHTE DATEN NACHLADEN
-    // Von world-atlas (Natural Earth, 110m Auflösung)
-    //   mode 'mesh'    → Grenzlinien
-    //   mode 'feature' → Flächen
+    // Von world-atlas (Natural Earth, 110m Auflösung): Grenzlinien
     // ============================================================
     const loadTopo = async (file, mode) => {
       const urls = [
@@ -636,26 +472,6 @@ export class OrbitMenu {
       return null;
     };
 
-    const geojsonToPolygons = (gj) => {
-      const out = [];
-      const add = (g) => {
-        if (!g) return;
-        if (g.type === 'Polygon') out.push(g.coordinates);
-        else if (g.type === 'MultiPolygon') g.coordinates.forEach(p => out.push(p));
-        else if (g.type === 'GeometryCollection') g.geometries.forEach(add);
-      };
-      if (gj.type === 'FeatureCollection') gj.features.forEach(f => f && add(f.geometry));
-      else if (gj.type === 'Feature') add(gj.geometry);
-      else add(gj);
-      return out;
-    };
-
-    loadTopo('land-110m.json', 'feature').then(geojson => {
-      if (!geojson) return;
-      const polygons = geojsonToPolygons(geojson);
-      if (polygons.length) drawLand(polygons);
-    });
-
     loadTopo('countries-110m.json', 'mesh').then(geojson => {
       if (!geojson) return;
       const nb = geojsonToLineSegments(geojson, 5.04);
@@ -669,10 +485,9 @@ export class OrbitMenu {
     });
 
     // ============================================================
-    // TAG/NACHT-TERMINATOR
-    // Dunkle Halbkugel + feiner Lichtsaum an der Tag/Nacht-Grenze.
-    // uSun = Richtung zum Subsolarpunkt im Erd-Koordinatensystem
-    // (dreht mit der Erde mit), wird minütlich aus der Uhrzeit berechnet.
+    // SONNENSTAND
+    // uSun = Richtung zum Subsolarpunkt im Erd-Koordinatensystem (dreht mit
+    // der Erde mit), wird minütlich aus der Uhrzeit berechnet.
     // ============================================================
     const sunDir = new THREE.Vector3(1, 0, 0);
     const updateSun = () => {
@@ -687,92 +502,159 @@ export class OrbitMenu {
     };
     updateSun();
 
-    const nightMat = new THREE.ShaderMaterial({
-      uniforms: { uSun: { value: sunDir }, uAmount: { value: 1 } },
-      vertexShader: `
-        varying vec3 vObj;
+    // ============================================================
+    // TEXTUREN (assets/, Quellen in assets/CREDITS.md)
+    // ============================================================
+    const texLoader = new THREE.TextureLoader();
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    const loadTex = (file) => texLoader
+      .loadAsync(new URL(`../../assets/${file}`, import.meta.url).href)
+      .then((t) => { t.anisotropy = maxAniso; return t; });
+
+    // Gemeinsamer Vertex-Shader: Normale, Blickrichtung und Sonne im Weltraum
+    const SURFACE_VERT = `
+      uniform vec3 uSun;
+      varying vec2 vUv;
+      varying vec3 vN;
+      varying vec3 vView;
+      varying vec3 vSun;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vN = normalize(mat3(modelMatrix) * normal);
+        vView = cameraPosition - wp.xyz;
+        vSun = mat3(modelMatrix) * uSun;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `;
+
+    // ============================================================
+    // ERDOBERFLÄCHE
+    // Tagseite: NASA Blue Marble, Sonnenlicht, Glanzlicht auf dem Ozean.
+    // Nachtseite: dunkle Oberfläche + echte Stadtlichter (Black Marble).
+    // Die Übergangszone (Terminator) bekommt ein leichtes Abendrot.
+    // Farben werden bewusst im Texturraum gerechnet (keine Umrechnung).
+    // ============================================================
+    const earthMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uDay: { value: null },
+        uSpec: { value: null },
+        uLights: { value: null },
+        uSun: { value: sunDir },
+        uFade: { value: 1 },    // Startaufbau: 0 = unsichtbar
+        uBoost: { value: 1 }    // > 1 = Erde "lädt sich auf" (Expand-Animation)
+      },
+      vertexShader: SURFACE_VERT,
+      fragmentShader: `
+        uniform sampler2D uDay;
+        uniform sampler2D uSpec;
+        uniform sampler2D uLights;
+        uniform float uFade;
+        uniform float uBoost;
+        varying vec2 vUv;
+        varying vec3 vN;
+        varying vec3 vView;
+        varying vec3 vSun;
         void main() {
-          vObj = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec3 N = normalize(vN);
+          vec3 V = normalize(vView);
+          vec3 L = normalize(vSun);
+          float ndl = dot(N, L);
+
+          vec3 dayCol = texture2D(uDay, vUv).rgb;
+          float ocean = texture2D(uSpec, vUv).r;
+
+          // Tag: weiches Sonnenlicht, etwas Grundhelligkeit
+          float day = smoothstep(-0.10, 0.22, ndl);
+          vec3 lit = dayCol * (0.10 + 1.0 * max(ndl, 0.0));
+
+          // Glanzlicht der Sonne auf dem Wasser
+          vec3 H = normalize(L + V);
+          float spec = pow(max(dot(N, H), 0.0), 70.0) * ocean * smoothstep(0.0, 0.3, ndl);
+          lit += vec3(1.0, 0.94, 0.82) * spec * 0.7;
+
+          // Abendrot am Terminator
+          float tw = exp(-pow(ndl / 0.14, 2.0));
+          lit += vec3(0.95, 0.42, 0.16) * tw * 0.16 * (0.4 + 0.6 * dayCol.r);
+
+          // Nacht: dunkle, bläuliche Oberfläche
+          vec3 nightCol = dayCol * vec3(0.025, 0.04, 0.07);
+          vec3 col = mix(nightCol, lit, day);
+
+          // Stadtlichter: scharfe Punkte + weicher Schein, nur auf der Nachtseite
+          float nightMask = 1.0 - smoothstep(-0.14, 0.05, ndl);
+          float sharp = texture2D(uLights, vUv).a;
+          float glow = texture2D(uLights, vUv, 3.0).a;
+          vec3 amber = vec3(1.0, 0.56, 0.18);
+          vec3 warm = vec3(1.0, 0.88, 0.62);
+          vec3 lightCol = mix(amber, warm, smoothstep(0.25, 0.9, sharp));
+          col += lightCol * (sharp * 1.45 + glow * 1.6) * nightMask;
+
+          // Atmosphäre am Rand: Blauer Saum, auf der Tagseite kräftiger
+          float facing = max(dot(N, V), 0.0);
+          float rim = pow(1.0 - facing, 3.0);
+          col += vec3(0.22, 0.46, 0.95) * rim * (0.10 + 0.50 * day);
+
+          gl_FragColor = vec4(col * uBoost, uFade);
         }
       `,
+      transparent: true
+    });
+    const earthSurface = new THREE.Mesh(new THREE.SphereGeometry(5, 96, 96), earthMat);
+    earthSurface.renderOrder = -1;
+    earthGroup.add(earthSurface);
+
+    // ============================================================
+    // WOLKEN
+    // Dünne Hülle über der Oberfläche. Tagseite weiß und beleuchtet,
+    // Nachtseite kaum sichtbar, leichter Drift gegenüber der Erde.
+    // ============================================================
+    const cloudMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uClouds: { value: null },
+        uSun: { value: sunDir },
+        uFade: { value: 1 }
+      },
+      vertexShader: SURFACE_VERT,
       fragmentShader: `
-        uniform vec3 uSun;
-        uniform float uAmount;
-        varying vec3 vObj;
+        uniform sampler2D uClouds;
+        uniform float uFade;
+        varying vec2 vUv;
+        varying vec3 vN;
+        varying vec3 vView;
+        varying vec3 vSun;
         void main() {
-          float d = dot(normalize(vObj), normalize(uSun));
-          float night = smoothstep(0.10, -0.22, d);
-          float rim = exp(-pow(d / 0.035, 2.0));
-          vec3 col = mix(vec3(0.0, 0.03, 0.05), vec3(0.36, 0.63, 0.67), rim * 0.5);
-          float a = (night * 0.5 + rim * 0.22) * uAmount;
-          gl_FragColor = vec4(col, a);
+          vec3 N = normalize(vN);
+          float ndl = dot(N, normalize(vSun));
+          float dens = texture2D(uClouds, vUv).r;
+          dens = smoothstep(0.12, 0.95, dens);
+
+          float day = smoothstep(-0.12, 0.25, ndl);
+          vec3 col = mix(vec3(0.05, 0.07, 0.11), vec3(1.0) * (0.22 + 0.85 * max(ndl, 0.0)), day);
+          // Nachts dünner, tagsüber deckend
+          float alpha = dens * mix(0.22, 0.88, day) * uFade;
+          gl_FragColor = vec4(col, alpha);
         }
       `,
       transparent: true,
       depthWrite: false
     });
-    const nightMesh = new THREE.Mesh(new THREE.SphereGeometry(5.03, 64, 64), nightMat);
-    nightMesh.renderOrder = 0.5;
-    earthGroup.add(nightMesh);
+    const cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(5.05, 96, 96), cloudMat);
+    cloudMesh.renderOrder = 0.6;
+    earthGroup.add(cloudMesh);
 
-    // ============================================================
-    // NACHTLICHTER
-    // Echte Lichter aus der NASA-Karte "Black Marble" (Alphakanal =
-    // Helligkeit, siehe assets/CREDITS.md). Nur auf der Nachtseite sichtbar.
-    // ============================================================
-    const lightsTex = new THREE.TextureLoader().load(
-      new URL('../../assets/earth-lights.png', import.meta.url).href
-    );
-    lightsTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-    const lightsMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uSun: { value: sunDir },
-        uLights: { value: lightsTex },
-        uAmount: { value: 1 }
-      },
-      vertexShader: `
-        varying vec3 vObj;
-        varying vec3 vNormal;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          vObj = normalize(position);
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 uSun;
-        uniform sampler2D uLights;
-        uniform float uAmount;
-        varying vec3 vObj;
-        varying vec3 vNormal;
-        varying vec2 vUv;
-        void main() {
-          float d = dot(normalize(vObj), normalize(uSun));
-          float night = smoothstep(0.0, -0.2, d);
-          float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-          float fade = 0.3 + 0.7 * smoothstep(0.0, 0.45, facing);
-          // scharfe Punkte + weicher Stadtschein (unscharfe Mip-Stufe)
-          float sharp = texture2D(uLights, vUv).a;
-          float glow = texture2D(uLights, vUv, 3.0).a;
-          // Natriumlicht: schwache Punkte orange, helle Kerne warmweiß
-          vec3 amber = vec3(1.0, 0.56, 0.18);
-          vec3 warm = vec3(1.0, 0.88, 0.62);
-          vec3 col = mix(amber, warm, smoothstep(0.25, 0.9, sharp));
-          float l = (sharp * 1.45 + glow * 1.6) * night * fade * uAmount;
-          gl_FragColor = vec4(col, min(l, 1.0));
-        }
-      `,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
-    const lightsMesh = new THREE.Mesh(new THREE.SphereGeometry(5.035, 64, 64), lightsMat);
-    lightsMesh.renderOrder = 0.6;
-    earthGroup.add(lightsMesh);
+    // Texturen laden; die Startsequenz wartet darauf (this._earthReady)
+    this._earthReady = Promise.all([
+      loadTex('earth-day.jpg'),
+      loadTex('earth-specular.jpg'),
+      loadTex('earth-lights.png'),
+      loadTex('earth-clouds.jpg')
+    ]).then(([day, spec, lights, clouds]) => {
+      earthMat.uniforms.uDay.value = day;
+      earthMat.uniforms.uSpec.value = spec;
+      earthMat.uniforms.uLights.value = lights;
+      cloudMat.uniforms.uClouds.value = clouds;
+    }).catch((err) => console.warn('OrbitMenu: Erd-Texturen nicht geladen', err));
 
     // ============================================================
     // STANDORT-MARKER — Punkt mit auslaufendem Puls-Ring
@@ -847,7 +729,7 @@ export class OrbitMenu {
         varying vec3 vNormal;
         void main() {
           float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.6);
-          gl_FragColor = vec4(0.0, 0.36, 0.42, 1.0) * intensity * 2.6 * uIntensity;
+          gl_FragColor = vec4(0.12, 0.34, 0.8, 1.0) * intensity * 2.4 * uIntensity;
         }
       `,
       blending: THREE.AdditiveBlending,
@@ -976,12 +858,10 @@ export class OrbitMenu {
 
       earthGroup.scale.setScalar(fx.scale);
       atmoMesh.scale.setScalar(fx.scale);
-      glowMat.opacity = 0.3 + fx.glow;
-      baseMat.opacity = Math.min(1, 0.7 + fx.glow * 0.4);
-      landMat.uniforms.uBoost.value = fx.boost;
       atmoMat.uniforms.uIntensity.value = fx.atmo;
+      earthMat.uniforms.uBoost.value = fx.boost;
 
-      // Startaufbau: Linien ziehen sich, Land/Atmosphäre/Städte blenden danach ein
+      // Startaufbau: Grenzlinien ziehen sich, danach blendet die Oberfläche ein
       const boot = this._bootValue(now);
       const lineT = easeInOutSine(boot);
       const fade = smoothstep(0.3, 1, boot);
@@ -989,12 +869,17 @@ export class OrbitMenu {
         const cnt = l.geometry.attributes.position ? l.geometry.attributes.position.count : 0;
         l.geometry.setDrawRange(0, lineT >= 1 ? Infinity : Math.floor(cnt * lineT / 2) * 2);
       });
-      landMat.uniforms.uFade.value = fade;
-      nightMat.uniforms.uAmount.value = smoothstep(0.5, 1, boot);
-      lightsMat.uniforms.uAmount.value = smoothstep(0.6, 1, boot);
+      earthMat.uniforms.uFade.value = fade;
+      cloudMat.uniforms.uFade.value = fade;
       atmoMat.uniforms.uIntensity.value *= fade;
 
+      // Landesgrenzen: leise, beim Hineinzoomen und beim Aufladen deutlicher
+      const borders = 0.06 + 0.26 * clamp01((this._zoom - 1) / 1.4) + fx.glow * 0.4;
+      baseMat.opacity = Math.min(1, borders);
+      glowMat.opacity = Math.min(1, borders * 0.5);
+
       earthGroup.rotation.y += dt * (0.12 + fx.spin);
+      cloudMesh.rotation.y += dt * 0.006;   // Wolken driften langsam gegen die Erde
 
       // Sonnenstand nur minütlich neu berechnen
       if (now - lastSunUpdate > 60000) {
@@ -1075,6 +960,9 @@ export class OrbitMenu {
     this._bootHold = false;
     this._bootStart = null;
   }
+
+  /** Erd-Texturen geladen (Startsequenz wartet darauf). */
+  get ready() { return this._earthReady || Promise.resolve(); }
 
   get isExpanded() { return this._expanded; }
   get isBusy() { return this._transitioning; }
