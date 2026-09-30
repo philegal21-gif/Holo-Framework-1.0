@@ -4,6 +4,7 @@ import { ModuleRegistry } from './core/ModuleRegistry.js';
 import { MODULES } from './modules/index.js';
 import { OrbitMenu } from './components/OrbitMenu.js';
 import { BootSequence } from './components/BootSequence.js';
+import { userLocation } from './core/Location.js';
 import { HomeTiles } from './components/HomeTiles.js';
 import { StarField } from './core/StarField.js';
 import { BackgroundGlow } from './core/BackgroundGlow.js';
@@ -115,6 +116,9 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   new HomeTiles();
 
   new BootSequence(orbit);
+
+  // Standort erst nach dem Aufbau anfragen (Erde-Marker + Wetter)
+  userLocation.start();
 
   // =========================================================
   // BACK-BUTTON

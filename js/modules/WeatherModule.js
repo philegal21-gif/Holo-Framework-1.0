@@ -1,10 +1,11 @@
-const WEATHER_URL =
+import { userLocation } from '../core/Location.js';
+
+const weatherUrl = ({ lat, lon }) =>
   'https://api.open-meteo.com/v1/forecast' +
-  '?latitude=52.5200' +
-  '&longitude=13.4050' +
+  `?latitude=${lat}&longitude=${lon}` +
   '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m' +
   '&daily=temperature_2m_max,temperature_2m_min' +
-  '&timezone=Europe%2FBerlin';
+  '&timezone=auto';
 
 class WeatherModule {
 
@@ -15,6 +16,19 @@ class WeatherModule {
     this._inflight = null;
     // Mehrere Widgets (Karussell + Startseite) teilen sich Daten und Timer
     this._widgets = new Map();   // widget → refresh-Handler
+
+    // Neuer Standort: Namen sofort tauschen, Wetter neu laden
+    userLocation.onChange(() => {
+      this._widgets.forEach((_, w) => this._applyLocation(w));
+      this.data = null;
+      this.lastUpdate = null;
+      if (this._widgets.size) (this._inflight || Promise.resolve()).finally(() => this.loadAll());
+    });
+  }
+
+  _applyLocation(widget) {
+    const el = widget.querySelector('[data-weather-location]');
+    if (el) el.textContent = userLocation.get().name;
   }
 
   buildWidgetHTML() {
@@ -24,7 +38,7 @@ class WeatherModule {
         <div class="weather-header">
           <div class="weather-location">
             <i class="fa-solid fa-location-dot"></i>
-            <span>BERLIN</span>
+            <span data-weather-location>${userLocation.get().name}</span>
           </div>
 
           <button
@@ -122,6 +136,7 @@ class WeatherModule {
     };
     if (refresh) refresh.addEventListener('click', onRefresh);
     this._widgets.set(widget, onRefresh);
+    this._applyLocation(widget);
 
     // Frische Daten direkt übernehmen, sonst laden
     const fresh = this.data && (Date.now() - this.lastUpdate) < 5 * 60 * 1000;
@@ -174,11 +189,15 @@ class WeatherModule {
 
     each(w => w.classList.add('loading'));
     try {
-      const response = await fetch(WEATHER_URL, { cache: 'no-store' });
+      const loc = userLocation.get();
+      const response = await fetch(weatherUrl(loc), { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`Weather API error: ${response.status}`);
       }
-      this.data = await response.json();
+      const json = await response.json();
+      // Standort wechselte während der Anfrage → Ergebnis verwerfen, onChange lädt neu
+      if (loc !== userLocation.get()) return;
+      this.data = json;
       this.lastUpdate = Date.now();
       each(w => this.render(w, this.data));
     } catch (error) {

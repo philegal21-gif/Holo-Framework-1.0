@@ -3,6 +3,7 @@ import { PROJECTS } from '../data/projects.js';
 import { ViewManager } from '../core/ViewManager.js';
 import { audio } from '../core/AudioEngine.js';
 import { Mat3 } from '../core/utils.js';
+import { userLocation } from '../core/Location.js';
 
 // Rotationsmatrix gegen Rundungsdrift wieder orthonormal machen (Gram-Schmidt)
 const orthonormalize = (m) => {
@@ -647,40 +648,6 @@ export class OrbitMenu {
     });
 
     // ============================================================
-    // STÄDTE — pulsierende grüne Punkte
-    // ============================================================
-    const CITIES = [
-      { lat: 35.6762, lon: 139.6503 }, { lat: 51.5074, lon: -0.1278 },
-      { lat: 40.7128, lon: -74.0060 }, { lat: 31.2304, lon: 121.4737 },
-      { lat: -33.8688, lon: 151.2093 }, { lat: 30.0444, lon: 31.2357 },
-      { lat: -22.9068, lon: -43.1729 }, { lat: 19.0760, lon: 72.8777 },
-      { lat: 48.8566, lon: 2.3522 }, { lat: 1.3521, lon: 103.8198 },
-      { lat: 34.0522, lon: -118.2437 }, { lat: -23.5505, lon: -46.6333 },
-      { lat: -33.9249, lon: 18.4241 }, { lat: 25.2048, lon: 55.2708 },
-      { lat: 55.7558, lon: 37.6173 }
-    ];
-
-    const cityPositions = [];
-    CITIES.forEach(c => {
-      const v = latLonToVec3(c.lat, c.lon, 5.08);
-      cityPositions.push(v.x, v.y, v.z);
-    });
-
-    const cityGeo = new THREE.BufferGeometry();
-    cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(cityPositions, 3));
-    this._cityMat = new THREE.PointsMaterial({
-      color: 0x8cc4ce,
-      size: 0.35,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 1.0,
-      blending: THREE.AdditiveBlending
-    });
-    const cityPoints = new THREE.Points(cityGeo, this._cityMat);
-    cityPoints.renderOrder = 2;
-    earthGroup.add(cityPoints);
-
-    // ============================================================
     // TAG/NACHT-TERMINATOR
     // Dunkle Halbkugel + feiner Lichtsaum an der Tag/Nacht-Grenze.
     // uSun = Richtung zum Subsolarpunkt im Erd-Koordinatensystem
@@ -729,15 +696,24 @@ export class OrbitMenu {
     earthGroup.add(nightMesh);
 
     // ============================================================
-    // HEIMAT-MARKER (Berlin) — Punkt mit auslaufendem Puls-Ring
+    // STANDORT-MARKER — Punkt mit auslaufendem Puls-Ring
+    // Sitzt auf dem Nutzerstandort (Fallback Berlin), wandert bei Änderung.
     // ============================================================
-    const HOME = { lat: 52.52, lon: 13.405 };
-    const homeNormal = latLonToVec3(HOME.lat, HOME.lon, 1).normalize();
-
     const homeGeo = new THREE.BufferGeometry();
-    const hp = latLonToVec3(HOME.lat, HOME.lon, 5.09);
-    homeGeo.setAttribute('position', new THREE.Float32BufferAttribute([hp.x, hp.y, hp.z], 3));
+    homeGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+    // Runder, weich auslaufender Punkt statt Quadrat
+    const dotCanvas = document.createElement('canvas');
+    dotCanvas.width = dotCanvas.height = 64;
+    const dotCtx = dotCanvas.getContext('2d');
+    const dotGrad = dotCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    dotGrad.addColorStop(0, 'rgba(255,255,255,1)');
+    dotGrad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+    dotGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    dotCtx.fillStyle = dotGrad;
+    dotCtx.fillRect(0, 0, 64, 64);
+
     const homeMat = new THREE.PointsMaterial({
+      map: new THREE.CanvasTexture(dotCanvas),
       color: 0xe6f4f6,
       size: 0.5,
       sizeAttenuation: true,
@@ -758,10 +734,19 @@ export class OrbitMenu {
       depthWrite: false
     });
     const pulseRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.23, 48), pulseMat);
-    pulseRing.position.copy(homeNormal).multiplyScalar(5.085);
-    pulseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), homeNormal);
     pulseRing.renderOrder = 3;
     earthGroup.add(pulseRing);
+
+    const placeHome = ({ lat, lon }) => {
+      const n = latLonToVec3(lat, lon, 1).normalize();
+      const hp = n.clone().multiplyScalar(5.09);
+      homeGeo.setAttribute('position', new THREE.Float32BufferAttribute([hp.x, hp.y, hp.z], 3));
+      homeGeo.computeBoundingSphere();
+      pulseRing.position.copy(n).multiplyScalar(5.085);
+      pulseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+    };
+    placeHome(userLocation.get());
+    this._unsubscribeLocation = userLocation.onChange(placeHome);
 
     // ============================================================
     // ATMOSPHÄRE
@@ -917,13 +902,8 @@ export class OrbitMenu {
       landMat.uniforms.uFade.value = fade;
       nightMat.uniforms.uAmount.value = smoothstep(0.5, 1, boot);
       atmoMat.uniforms.uIntensity.value *= fade;
-      this._cityMat.opacity = smoothstep(0.6, 1, boot);
 
       earthGroup.rotation.y += dt * (0.12 + fx.spin);
-
-      if (this._cityMat) {
-        this._cityMat.size = (0.32 + Math.sin(t * 3.5) * 0.08) * (1 + fx.glow * 0.6);
-      }
 
       // Sonnenstand nur minütlich neu berechnen
       if (now - lastSunUpdate > 60000) {
@@ -931,7 +911,7 @@ export class OrbitMenu {
         updateSun();
       }
 
-      // Berlin: Punkt atmet, Ring läuft alle 3 s aus
+      // Standort: Punkt atmet, Ring läuft alle 3 s aus
       homeMat.size = (0.45 + Math.sin(t * 2.4) * 0.1) * smoothstep(0.75, 1, boot);
       const ph = (t % 3) / 3;
       pulseRing.scale.setScalar(1 + ph * 4.5);
@@ -1670,6 +1650,7 @@ export class OrbitMenu {
       this._orbit.removeEventListener('pointerdown', this._boundOnPointerDown);
       this._orbit.removeEventListener('click', this._onOrbitClick);
     }
+    if (typeof this._unsubscribeLocation === 'function') this._unsubscribeLocation();
     if (typeof this._unsubscribeView === 'function') {
       this._unsubscribeView();
     }
