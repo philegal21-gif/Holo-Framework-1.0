@@ -36,7 +36,7 @@
 .nav-btn:hover {
   background: rgba(42,111,122,0.45);
   border-color: var(--accent-mid);
-  box-shadow: 0 0 18px rgba(42,111,122,0.5);
+  box-shadow: none;
   transform: scale(1.08);
 }
 

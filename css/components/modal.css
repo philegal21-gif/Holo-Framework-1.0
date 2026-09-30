@@ -84,7 +84,7 @@
 
 .modal-input:focus {
   border-color: var(--accent-light);
-  box-shadow: 0 0 20px rgba(92, 160, 171, 0.35);
+  box-shadow: none;
 }
 
 .modal-label {
@@ -182,7 +182,7 @@
   justify-content: center;
   border: 1px solid rgba(226, 232, 240, 0.4);
   background: radial-gradient(circle at 30% 30%, rgba(92, 160, 171, 0.2), rgba(0, 35, 40, 0.9) 85%);
-  box-shadow: 0 0 20px rgba(92, 160, 171, 0.35);
+  box-shadow: none;
 }
 
 .modal-title-icon i,

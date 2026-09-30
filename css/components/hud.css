@@ -56,7 +56,7 @@ body.state-carousel #key-hints {
 .bg-ctrl[aria-pressed="true"] {
   color: var(--accent-light);
   border-color: rgba(92, 160, 171, 0.3);
-  box-shadow: 0 0 10px rgba(92, 160, 171, 0.15);
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {

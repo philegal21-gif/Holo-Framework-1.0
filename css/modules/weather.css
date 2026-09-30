@@ -18,7 +18,7 @@
   --weather-accent: var(--accent-soft);
   --weather-accent-bright: var(--accent-light);
   --weather-accent-soft: rgba(63, 138, 150, 0.16);
-  --weather-accent-glow: rgba(92, 160, 171, 0.42);
+  --weather-accent-glow: rgba(92, 160, 171, 0.1);
 
   position: relative;
   width: 100%;
@@ -48,10 +48,7 @@
   border: 1px solid rgba(63, 138, 150, 0.38);
   border-radius: 4px;
 
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
-    inset 0 0 40px rgba(63, 138, 150, 0.05),
-    0 0 24px rgba(63, 138, 150, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 
   overflow: hidden;
   isolation: isolate;
@@ -92,9 +89,9 @@
   align-items: center;
   gap: 7px;
 
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.03em;
 
   color: rgba(226, 232, 240, 0.72);
 }
@@ -215,9 +212,7 @@
   letter-spacing: -0.05em;
 
   color: #f0f6f7;
-  text-shadow:
-    0 0 10px rgba(92, 160, 171, 0.20),
-    0 0 24px rgba(63, 138, 150, 0.10);
+  text-shadow: none;
 }
 
 .weather-temperature [data-weather-temperature] {
@@ -229,7 +224,7 @@
   margin-left: 2px;
   font-size: 20px;
   color: var(--weather-accent-bright);
-  text-shadow: 0 0 8px var(--weather-accent-glow);
+  text-shadow: none;
 }
 
 .weather-condition {
@@ -245,8 +240,8 @@
 
 .weather-feels {
   margin-top: 2px;
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.03em;
   color: rgba(226, 232, 240, 0.42);
 }
 
@@ -320,10 +315,10 @@
 .weather-stat-label {
   display: block;
   margin-bottom: 3px;
-  font-size: 8px;
+  font-size: 9.5px;
   line-height: 1;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.03em;
   color: rgba(226, 232, 240, 0.55);
   white-space: nowrap;
 }
@@ -337,7 +332,7 @@
   color: #f1f7f8;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  text-shadow: 0 0 8px rgba(92, 160, 171, 0.22);
+  text-shadow: none;
 }
 
 /* =========================================================
@@ -364,9 +359,9 @@
 .weather-range > div:last-child { text-align: right; }
 
 .weather-range span {
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.03em;
   color: rgba(226, 232, 240, 0.36);
 }
 
@@ -413,9 +408,9 @@
 
   border-top: 1px solid rgba(63, 138, 150, 0.12);
 
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.03em;
   color: rgba(226, 232, 240, 0.30);
 }
 
@@ -484,16 +479,12 @@
 
 .holo-tile:hover .weather-widget {
   border-color: rgba(92, 160, 171, 0.55);
-  box-shadow:
-    inset 0 0 40px rgba(63, 138, 150, 0.08),
-    0 0 26px rgba(92, 160, 171, 0.14);
+  box-shadow: none;
 }
 
 .holo-tile.active .weather-widget {
   border-color: rgba(92, 160, 171, 0.48);
-  box-shadow:
-    inset 0 0 44px rgba(63, 138, 150, 0.08),
-    0 0 30px rgba(92, 160, 171, 0.13);
+  box-shadow: none;
 }
 
 /* =========================================================
