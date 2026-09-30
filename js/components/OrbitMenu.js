@@ -676,7 +676,7 @@ export class OrbitMenu {
     const homeMat = new THREE.PointsMaterial({
       map: new THREE.CanvasTexture(dotCanvas),
       color: 0xe6f4f6,
-      size: 0.5,
+      size: 0.14,
       sizeAttenuation: true,
       transparent: true,
       blending: THREE.AdditiveBlending,
@@ -694,7 +694,7 @@ export class OrbitMenu {
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
-    const pulseRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.23, 48), pulseMat);
+    const pulseRing = new THREE.Mesh(new THREE.RingGeometry(0.085, 0.1, 48), pulseMat);
     pulseRing.renderOrder = 3;
     earthGroup.add(pulseRing);
 
@@ -888,9 +888,9 @@ export class OrbitMenu {
       }
 
       // Standort: Punkt atmet, Ring läuft alle 3 s aus
-      homeMat.size = (0.45 + Math.sin(t * 2.4) * 0.1) * smoothstep(0.75, 1, boot);
+      homeMat.size = (0.13 + Math.sin(t * 2.4) * 0.03) * smoothstep(0.75, 1, boot);
       const ph = (t % 3) / 3;
-      pulseRing.scale.setScalar(1 + ph * 4.5);
+      pulseRing.scale.setScalar(1 + ph * 4);
       pulseMat.opacity = (1 - ph) * (1 - ph) * 0.8 * smoothstep(0.75, 1, boot);
 
       renderer.render(scene, camera);
