@@ -107,7 +107,7 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   });
 
   // =========================================================
-  // HOME TILES (BVG + Wetter)
+  // HOME TILES (Wetter)
   // =========================================================
 
   new HomeTiles();

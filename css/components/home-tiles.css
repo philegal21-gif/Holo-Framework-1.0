@@ -33,7 +33,6 @@
     visibility 0s;
 }
 
-.glass-tile--bvg     { left: var(--edge); }
 .glass-tile--weather { right: var(--edge); }
 
 /* Geöffneter Orbit: noch weiter zurücktreten */
@@ -95,74 +94,10 @@ body:not(.state-home) .glass-tile {
    Widget-Inhalte – kompakt, nur Anzeige
    ========================================================= */
 
-.glass-tile [data-bvg-refresh],
 .glass-tile [data-weather-refresh],
-.glass-tile .bvg-footer,
 .glass-tile .weather-stats,
 .glass-tile .weather-feels,
 .glass-tile .weather-footer { display: none; }
-
-/* BVG */
-
-.glass-tile .bvg-widget {
-  background: transparent;
-  border-radius: 0;
-}
-
-.glass-tile .bvg-header {
-  background: transparent;
-  color: var(--silver-bright);
-  padding: 11px 14px 7px;
-}
-
-.glass-tile .bvg-station {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-}
-
-.glass-tile .bvg-pulse {
-  width: 6px;
-  height: 6px;
-  background: var(--bvg-yellow);
-}
-
-.glass-tile .bvg-header-icon {
-  font-size: 0.7rem;
-  color: var(--bvg-yellow);
-  opacity: 0.7;
-}
-
-.glass-tile .bvg-list { padding: 0 0 6px; }
-
-.glass-tile .bvg-item:nth-child(n + 4) { display: none; }
-
-.glass-tile .bvg-item {
-  padding: 5px 14px;
-  border-bottom: none;
-}
-
-.glass-tile .bvg-badge {
-  width: 34px;
-  height: 17px;
-  border-radius: 4px;
-  font-size: 0.58rem;
-}
-
-.glass-tile .bvg-dest {
-  margin: 0 8px;
-  font-size: 0.68rem;
-  color: rgba(226, 232, 240, 0.8);
-}
-
-.glass-tile .bvg-time-box { min-width: 40px; }
-.glass-tile .bvg-min { font-size: 0.72rem; }
-.glass-tile .bvg-delay { font-size: 0.52rem; }
-
-.glass-tile .bvg-status {
-  padding: 14px;
-  color: rgba(226, 232, 240, 0.4);
-}
 
 /* Wetter */
 
@@ -253,7 +188,6 @@ body:not(.state-home) .glass-tile {
     translate: calc(var(--px, 0) * var(--depth) * -1px) 0;
   }
 
-  .glass-tile .bvg-item:nth-child(n + 3) { display: none; }
   .glass-tile .weather-range { display: none; }
 }
 

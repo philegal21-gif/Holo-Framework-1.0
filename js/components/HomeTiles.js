@@ -1,9 +1,8 @@
 import { ViewManager } from '../core/ViewManager.js';
-import { bvg } from '../modules/BvgModule.js';
 import { weather } from '../modules/WeatherModule.js';
 
 /**
- * Dezente Glas-Kacheln hinter der Erde (BVG + Wetter) – reine Anzeige,
+ * Dezente Glas-Kacheln hinter der Erde (Wetter) – reine Anzeige,
  * ohne Interaktion. Liegen unter #stage, Erde und Orbit ziehen darüber.
  *
  * Aufbau je Kachel:
@@ -26,13 +25,10 @@ export class HomeTiles {
     this.root.id = 'home-tiles';
     this.root.setAttribute('aria-hidden', 'true');
     this.root.innerHTML = `
-      ${this._tileHTML('bvg', bvg.buildWidgetHTML('home'))}
       ${this._tileHTML('weather', weather.buildWidgetHTML())}
     `;
     parent.appendChild(this.root);
 
-    bvg.bindWidget(this.root.querySelector('.glass-tile--bvg'), 'home');
-    bvg.start();
     weather.bindWidget(this.root.querySelector('.glass-tile--weather'));
 
     this._bindPointer();
