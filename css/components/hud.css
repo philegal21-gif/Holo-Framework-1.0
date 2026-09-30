@@ -2,7 +2,7 @@
 .corner-hud {
   position: fixed;
   z-index: 45;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: .6rem;
   letter-spacing: .06em;
   color: rgba(165,172,175,0.5);
@@ -28,7 +28,7 @@ body.state-neural .corner-hud {
   position: fixed;
   bottom: 12px;
   right: 18px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: .58rem;
   color: rgba(165,172,175,0.4);
   letter-spacing: .04em;

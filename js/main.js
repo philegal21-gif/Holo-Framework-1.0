@@ -61,11 +61,7 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   // TON AN/AUS
   // =========================================================
 
-  const AUDIO_PREF = 'holo-audio';
   const btnAudio = document.getElementById('btn-audio');
-  try {
-    if (localStorage.getItem(AUDIO_PREF) === 'off') audio.enabled = false;
-  } catch (_) {}
 
   const syncAudioButton = () => {
     btnAudio.setAttribute('aria-pressed', String(audio.enabled));
@@ -77,7 +73,6 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
   btnAudio.addEventListener('click', (e) => {
     e.stopPropagation();
     audio.enabled = !audio.enabled;
-    try { localStorage.setItem(AUDIO_PREF, audio.enabled ? 'on' : 'off'); } catch (_) {}
     syncAudioButton();
     if (audio.enabled) {
       audio.unlock();
@@ -177,5 +172,4 @@ import { BackgroundGlow } from './core/BackgroundGlow.js';
 
   ViewManager.setState('HOME');
 
-  if (window.lucide) lucide.createIcons();
 })();

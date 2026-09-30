@@ -88,14 +88,14 @@ export class SphereModule {
         <div class="sphere-capsule">
           <div class="sphere-favicon-wrap">
             <img src="${faviconSrc}" alt="${esc(displayName)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-            <i data-lucide="globe" style="width:12px;height:12px;color:var(--midnight-neon);display:none;"></i>
+            <i class="fa-solid fa-globe"></i>
           </div>
           <div class="sphere-meta">
             <span class="sphere-title">${esc(displayName)}</span>
             <span class="sphere-domain">${esc(domain)}</span>
           </div>
           <button class="delete-node-btn" title="Favorit entfernen" data-del-id="${esc(fav.id)}">
-            <i data-lucide="x" style="width:12px;height:12px;"></i>
+            <i class="fa-solid fa-xmark"></i>
           </button>
         </div>`;
 
@@ -120,8 +120,6 @@ export class SphereModule {
         window.open(SphereModule.formatUrl(fav.url), '_blank', 'noopener,noreferrer');
       });
     });
-
-    if (window.lucide) lucide.createIcons();
   }
 
   _saveFavorites() {
