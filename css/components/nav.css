@@ -19,7 +19,7 @@
 }
 
 .nav-btn {
-  background: rgba(0,76,84,0.22);
+  background: rgba(0,73,83,0.22);
   border: 1px solid rgba(165,172,175,0.28);
   color: var(--silver-bright);
   width: 42px;
@@ -34,9 +34,9 @@
 }
 
 .nav-btn:hover {
-  background: rgba(0,118,128,0.45);
-  border-color: var(--midnight-light);
-  box-shadow: 0 0 18px rgba(0,118,128,0.5);
+  background: rgba(42,111,122,0.45);
+  border-color: var(--accent-mid);
+  box-shadow: 0 0 18px rgba(42,111,122,0.5);
   transform: scale(1.08);
 }
 
@@ -53,7 +53,7 @@
 }
 
 #brand-title span {
-  color: var(--midnight-light);
+  color: var(--accent-mid);
 }
 
 #btn-back {
@@ -69,5 +69,5 @@ body:not(.state-home) #btn-back {
   transform: scale(1);
 }
 .brand-icon {
-  color: var(--midnight-light);
+  color: var(--accent-mid);
 }

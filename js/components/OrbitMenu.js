@@ -486,9 +486,9 @@ export class OrbitMenu {
 
       // Grundfüllung: von Nord nach Süd leicht verlaufend
       const grad = ctx.createLinearGradient(0, 0, 0, LAND_H);
-      grad.addColorStop(0.0, 'rgba(0, 170, 130, 0.62)');
-      grad.addColorStop(0.5, 'rgba(0, 150, 115, 0.55)');
-      grad.addColorStop(1.0, 'rgba(0, 120, 100, 0.50)');
+      grad.addColorStop(0.0, 'rgba(0, 110, 125, 0.62)');
+      grad.addColorStop(0.5, 'rgba(0, 95, 108, 0.55)');
+      grad.addColorStop(1.0, 'rgba(0, 73, 83, 0.50)');
       ctx.fillStyle = grad;
       ctx.fill('nonzero');
 
@@ -496,7 +496,7 @@ export class OrbitMenu {
       ctx.clip('nonzero');
 
       // Holo-Schraffur auf dem Land
-      ctx.strokeStyle = 'rgba(0, 255, 190, 0.07)';
+      ctx.strokeStyle = 'rgba(140, 196, 206, 0.07)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let y = 0; y < LAND_H; y += 6) {
@@ -508,7 +508,7 @@ export class OrbitMenu {
       // Weiche, helle Innenkante entlang der Küsten
       ctx.beginPath();
       polygons.forEach(rings => rings.forEach(ring => traceRing(ring, 0)));
-      ctx.strokeStyle = 'rgba(0, 235, 175, 0.45)';
+      ctx.strokeStyle = 'rgba(92, 160, 171, 0.45)';
       ctx.lineWidth = 3;
       ctx.stroke();
 
@@ -562,12 +562,12 @@ export class OrbitMenu {
     //   glowMat → helleres Grün, additiv, dezenter Schimmer
     // ============================================================
     const baseMat = new THREE.LineBasicMaterial({
-      color: 0x00a078,
+      color: 0x4f97a3,
       transparent: true,
       opacity: 0.7
     });
     const glowMat = new THREE.LineBasicMaterial({
-      color: 0x00ffaa,
+      color: 0x7fb8c2,
       transparent: true,
       opacity: 0.3,
       blending: THREE.AdditiveBlending
@@ -669,7 +669,7 @@ export class OrbitMenu {
     const cityGeo = new THREE.BufferGeometry();
     cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(cityPositions, 3));
     this._cityMat = new THREE.PointsMaterial({
-      color: 0x00ffcc,
+      color: 0x8cc4ce,
       size: 0.35,
       sizeAttenuation: true,
       transparent: true,
@@ -716,7 +716,7 @@ export class OrbitMenu {
           float d = dot(normalize(vObj), normalize(uSun));
           float night = smoothstep(0.10, -0.22, d);
           float rim = exp(-pow(d / 0.035, 2.0));
-          vec3 col = mix(vec3(0.0, 0.03, 0.05), vec3(0.0, 0.9, 0.7), rim * 0.55);
+          vec3 col = mix(vec3(0.0, 0.03, 0.05), vec3(0.36, 0.63, 0.67), rim * 0.5);
           float a = (night * 0.5 + rim * 0.22) * uAmount;
           gl_FragColor = vec4(col, a);
         }
@@ -738,7 +738,7 @@ export class OrbitMenu {
     const hp = latLonToVec3(HOME.lat, HOME.lon, 5.09);
     homeGeo.setAttribute('position', new THREE.Float32BufferAttribute([hp.x, hp.y, hp.z], 3));
     const homeMat = new THREE.PointsMaterial({
-      color: 0xd9fff6,
+      color: 0xe6f4f6,
       size: 0.5,
       sizeAttenuation: true,
       transparent: true,
@@ -750,7 +750,7 @@ export class OrbitMenu {
     earthGroup.add(homePoint);
 
     const pulseMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffcc,
+      color: 0x8cc4ce,
       transparent: true,
       opacity: 0,
       side: THREE.DoubleSide,
@@ -783,7 +783,7 @@ export class OrbitMenu {
         varying vec3 vNormal;
         void main() {
           float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.6);
-          gl_FragColor = vec4(0.0, 0.55, 0.42, 1.0) * intensity * 2.6 * uIntensity;
+          gl_FragColor = vec4(0.0, 0.36, 0.42, 1.0) * intensity * 2.6 * uIntensity;
         }
       `,
       blending: THREE.AdditiveBlending,

@@ -1,29 +1,4 @@
-/* Corner HUD + Key Hints + Bottom Controls */
-.corner-hud {
-  position: fixed;
-  z-index: 45;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: .6rem;
-  letter-spacing: .06em;
-  color: rgba(165,172,175,0.5);
-  pointer-events: none;
-  top: 72px;
-  right: 18px;
-  text-align: right;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-}
-
-body.state-carousel .corner-hud,
-body.state-sphere .corner-hud,
-body.state-neural .corner-hud {
-  opacity: 1;
-}
-
-.corner-hud .accent {
-  color: rgba(0,118,128,0.8);
-}
-
+/* Key Hints + Bottom Controls */
 #key-hints {
   position: fixed;
   bottom: 12px;
@@ -73,22 +48,22 @@ body.state-carousel #key-hints {
 .bg-ctrl:hover {
   opacity: 1;
   color: var(--silver-pure);
-  border-color: rgba(0, 229, 191, 0.4);
+  border-color: rgba(92, 160, 171, 0.4);
   transform: scale(1.06);
 }
 
 /* Aktiv: leicht türkis */
 .bg-ctrl[aria-pressed="true"] {
-  color: var(--midnight-neon);
-  border-color: rgba(0, 229, 191, 0.3);
-  box-shadow: 0 0 10px rgba(0, 229, 191, 0.15);
+  color: var(--accent-light);
+  border-color: rgba(92, 160, 171, 0.3);
+  box-shadow: 0 0 10px rgba(92, 160, 171, 0.15);
 }
 
 @media (max-width: 640px) {
   #bg-controls { left: 12px; bottom: 14px; }
 
   #key-hints,
-  .corner-hud {
+ {
     display: none;
   }
 }

@@ -1,22 +1,22 @@
 /* Cursor Flare */
 #cursor-flare {
   position: fixed;
-  width: 16px;
-  height: 16px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(0,118,128,0.95) 0%, rgba(165,172,175,0.35) 55%, transparent 70%);
+  background: radial-gradient(circle, rgba(165,172,175,0.7) 0%, rgba(165,172,175,0.25) 55%, transparent 70%);
   pointer-events: none;
   z-index: 9999;
   transform: translate(-50%, -50%);
   transition: width .15s, height .15s, opacity .15s;
   mix-blend-mode: screen;
-  box-shadow: 0 0 14px 5px rgba(0,118,128,0.55);
+  box-shadow: 0 0 8px 2px rgba(92,160,171,0.25);
 }
 
 #cursor-flare.hover {
-  width: 34px;
-  height: 34px;
-  opacity: .9;
+  width: 26px;
+  height: 26px;
+  opacity: .8;
 }
 
 @media (hover: none) {
