@@ -1,4 +1,4 @@
-import { esc } from '../core/utils.js';
+import { esc, loadScript, prefersReducedMotion } from '../core/utils.js';
 import { audio } from '../core/AudioEngine.js';
 import { ViewManager } from '../core/ViewManager.js';
 
@@ -89,7 +89,13 @@ const crestHTML = (url, name) =>
     ? `<div class="wt-crest" data-fallback="${esc(initials(name))}"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy"></div>`
     : `<div class="wt-crest">${esc(initials(name)) || FOOTBALL}</div>`;
 
-const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// hls.js (~400 KB) wird erst beim ersten HLS-Stream nachgeladen, nicht beim Seitenstart
+const HLS_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js';
+const loadHls = () => (window.Hls
+  ? Promise.resolve(window.Hls)
+  : loadScript(HLS_URL).then(() => window.Hls).catch(() => null));
+
+const reducedMotion = prefersReducedMotion;
 
 export class WatchtimeModule {
   constructor(rootEl) {
@@ -466,6 +472,7 @@ export class WatchtimeModule {
   }
 
   _stopAllMedia() {
+    this._playToken = (this._playToken || 0) + 1;   // offene HLS-Ladevorgänge verwerfen
     const { frame, video } = this.el;
     frame.removeAttribute('src');
     frame.classList.remove('is-active');
@@ -523,23 +530,31 @@ export class WatchtimeModule {
     this.el.shell.classList.add('is-playing');
 
     const isHls = /\.m3u8(\?|$)/i.test(url);
-    const Hls = window.Hls;
+    const token = this._playToken;
 
-    if (isHls && Hls && Hls.isSupported()) {
-      this.hls = new Hls({ lowLatencyMode: true, enableWorker: true });
-      this.hls.loadSource(url);
-      this.hls.attachMedia(video);
-      this.hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
-      this.hls.on(Hls.Events.ERROR, (_ev, data) => {
-        if (data.fatal) {
-          console.error('[Watchtime HLS]', data);
-          this._toast('HLS-Stream-Fehler: ' + (data.details || 'unbekannt'), true);
-        }
-      });
-    } else {
+    const playNative = () => {
       // Safari spielt HLS nativ, alles andere direkt
       video.src = url;
       video.play().catch(() => {});
+    };
+
+    if (isHls) {
+      loadHls().then((Hls) => {
+        if (token !== this._playToken) return;   // inzwischen anderer Stream oder gestoppt
+        if (!Hls || !Hls.isSupported()) { playNative(); return; }
+        this.hls = new Hls({ lowLatencyMode: true, enableWorker: true });
+        this.hls.loadSource(url);
+        this.hls.attachMedia(video);
+        this.hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+        this.hls.on(Hls.Events.ERROR, (_ev, data) => {
+          if (data.fatal) {
+            console.error('[Watchtime HLS]', data);
+            this._toast('HLS-Stream-Fehler: ' + (data.details || 'unbekannt'), true);
+          }
+        });
+      });
+    } else {
+      playNative();
     }
 
     this.selectedKey = null;

@@ -52,12 +52,5 @@ export const ViewManager = {
     return () => this._listeners.delete(fn);
   },
 
-  /**
-   * Optional: alle Listener entfernen (z. B. beim Hot-Reload oder Testen).
-   */
-  clearListeners() {
-    this._listeners.clear();
-  },
-
   goHome() { this.setState('HOME'); }
 };
