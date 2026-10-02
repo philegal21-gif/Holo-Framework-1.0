@@ -78,8 +78,10 @@ export function buildEarth(orbit, container) {
   // den Bloom bei zu langsamen Frames ab.
   // ============================================================
   const qualityParam = (location.search.match(/[?&]quality=(high|low)/) || [])[1];
-  orbit._bloomOn = qualityParam ? qualityParam === 'high' : true;
-  const autoQuality = !qualityParam;
+  // Touch-Geräte (Handy/Tablet): Bloom nur auf Wunsch, dort flackerte er an hellen Punkten
+  const touchDevice = window.matchMedia('(pointer: coarse)').matches;
+  orbit._bloomOn = qualityParam ? qualityParam === 'high' : !touchDevice;
+  const autoQuality = !qualityParam && !touchDevice;
 
   const pr0 = renderer.getPixelRatio();
   // 8 Bit wie der normale Canvas: Überlagerungen (leuchtende Linien) werden bei jedem
