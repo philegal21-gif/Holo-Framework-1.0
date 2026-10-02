@@ -49,7 +49,8 @@ export function buildEarth(orbit, container) {
     powerPreference: 'high-performance',
     stencil: false
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const basePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(basePixelRatio);
   renderer.setSize(width, height, false);
   renderer.setClearColor(0x000000, 0);
   renderer.setClearAlpha(0);
@@ -764,12 +765,19 @@ export function buildEarth(orbit, container) {
   // ============================================================
   // RESIZE
   // ============================================================
+  const MAX_BUFFER_PX = 3000;   // längste Seite des Zeichenpuffers
   const resize = () => {
     const w = container.clientWidth || 460;
     const h = container.clientHeight || 460;
+    // Beim Hineinzoomen schon in der Auflösung der Zielgröße rendern: das CSS-Skalieren
+    // bleibt scharf und beim Einrasten springt nichts mehr nach.
+    const grow = Math.max(1, orbit._zoomTarget / orbit._zoomBase);
+    const pr = Math.min(basePixelRatio * grow, MAX_BUFFER_PX / Math.max(w, h));
+    renderer.setPixelRatio(pr);
+    composer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     composer.setSize(w, h);
-    savePass.renderTarget.setSize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
+    savePass.renderTarget.setSize(w * pr, h * pr);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
@@ -833,6 +841,7 @@ export function buildEarth(orbit, container) {
   let lastNow = start;
   let lastEarthFrame = 0;
   let slowFrames = 0;
+  let pixelGrow = 1;   // Auflösungsfaktor, auf den der Puffer schon vergrößert wurde
   let lastSunUpdate = start;
 
   const tick = (now) => {
@@ -870,9 +879,15 @@ export function buildEarth(orbit, container) {
       orbit._zoom += (orbit._zoomTarget - orbit._zoom) * (1 - Math.exp(-dt * 10));
       if (Math.abs(orbit._zoomTarget - orbit._zoom) < 0.0005) orbit._zoom = orbit._zoomTarget;
       orbit._earthEl.style.transform = `scale(${(orbit._zoom / orbit._zoomBase).toFixed(4)})`;
+      // Zielauflösung vorab einstellen (nur wachsend, damit schnelles Zoomen nicht ständig neu anlegt)
+      if (orbit._zoomTarget / orbit._zoomBase > pixelGrow * 1.05) {
+        pixelGrow = orbit._zoomTarget / orbit._zoomBase;
+        resize();
+      }
       orbit._zoomIdleAt = now;
     } else if (orbit._zoom !== orbit._zoomBase && now - orbit._zoomIdleAt > 200) {
       orbit._commitZoom();
+      pixelGrow = 1;
     }
 
     const fx = computeFx(now);
