@@ -132,7 +132,7 @@ export function buildEarth(orbit, container) {
   const earthGroup = new THREE.Group();
   // Euler XYZ: erst Drehung um die eigene Y-Achse, dann Kippen um X → geneigte Achse
   earthGroup.rotation.x = EARTH_TILT;
-  scene.add(earthGroup); window.__eg = earthGroup; window.__orbit = orbit;
+  scene.add(earthGroup);
 
   // ============================================================
   // UNSICHTBARE KUGEL
@@ -619,11 +619,53 @@ export function buildEarth(orbit, container) {
   cloudMesh.renderOrder = 0.6;
   earthGroup.add(cloudMesh);
 
+  // ============================================================
+  // HÖHENLINIEN
+  // Isolinien aus der Höhenkarte, nur an Land (Meer = 0). Die Stufen sind
+  // zu niedrigen Höhen hin enger (Potenz), damit auch Flachland Linien bekommt.
+  // ============================================================
+  const contourMat = new THREE.ShaderMaterial({
+    uniforms: { uHeight: { value: null }, uFade: { value: 1 } },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uHeight;
+      uniform float uFade;
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      void main() {
+        float h = texture2D(uHeight, vUv).r;
+        float level = pow(h, 0.65) * 16.0;
+        float dist = abs(fract(level - 0.5) - 0.5) / max(fwidth(level), 1e-4);
+        float line = 1.0 - smoothstep(0.0, 1.2, dist);
+        float land = smoothstep(0.02, 0.06, h);
+        float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
+        float fade = 0.2 + 0.8 * smoothstep(0.0, 0.5, facing);
+        gl_FragColor = vec4(0.35, 0.78, 0.85, line * land * fade * 0.16 * uFade);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const contourMesh = new THREE.Mesh(new THREE.SphereGeometry(5.025, 128, 128), contourMat);
+  contourMesh.renderOrder = 0.55;
+  earthGroup.add(contourMesh);
+
   // Texturen laden; die Startsequenz wartet darauf (orbit._earthReady)
   orbit._earthReady = Promise.all([
     loadTex('earth-lights.png'),
-    loadTex('earth-clouds.jpg')
-  ]).then(([lightsTex, cloudsTex]) => {
+    loadTex('earth-clouds.jpg'),
+    loadTex('earth-height.png')
+  ]).then(([lightsTex, cloudsTex, heightTex]) => {
+    contourMat.uniforms.uHeight.value = heightTex;
     lightsMat.uniforms.uLights.value = lightsTex;
     cloudMat.uniforms.uClouds.value = cloudsTex;
   }).catch((err) => console.warn('OrbitMenu: Erd-Texturen nicht geladen', err));
@@ -863,6 +905,7 @@ export function buildEarth(orbit, container) {
     nightMat.uniforms.uAmount.value = smoothstep(0.5, 1, boot);
     lightsMat.uniforms.uAmount.value = smoothstep(0.6, 1, boot);
     cloudMat.uniforms.uFade.value = fade;
+    contourMat.uniforms.uFade.value = fade;
     atmoMat.uniforms.uIntensity.value *= fade;
 
     glowMat.opacity = 0.3 + fx.glow;
