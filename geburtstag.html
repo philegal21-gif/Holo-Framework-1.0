@@ -128,11 +128,14 @@
   .bg-dec{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden}
   .bg-dec span{position:absolute;top:-40px;opacity:.5;animation:fall linear infinite}
   @keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+  .mute{position:fixed;top:12px;right:12px;z-index:60;width:46px;height:46px;border-radius:50%;border:0;background:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15);display:none}
+  .mute.show{display:block}
 </style>
 </head>
 <body>
 <div class="bg-dec" id="bgdec"></div>
 <canvas id="confetti"></canvas>
+<button class="mute" id="mute" aria-label="Musik an/aus">🔊</button>
 
 <!-- 1: Umschlag -->
 <section id="intro" class="active">
@@ -257,6 +260,55 @@ for(let i=0;i<14;i++){
   $('#bgdec').appendChild(s);
 }
 
+
+/* Musik (Spieluhr-Klang, direkt im Browser erzeugt) */
+let actx, bgGain, songGain, muted = false, bgOn = false, bgTimer;
+const F = {C4:261.63,E4:329.63,F4:349.23,G4:392,A4:440,B4:493.88,C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99};
+function tone(f, t, d, v, dest){
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
+  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(g); o2.connect(g); g.connect(dest);
+  o.start(t); o2.start(t); o.stop(t + d + .05); o2.stop(t + d + .05);
+}
+function initAudio(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  actx = new AC();
+  bgGain = actx.createGain(); bgGain.gain.value = .5; bgGain.connect(actx.destination);
+  songGain = actx.createGain(); songGain.gain.value = muted ? 0 : 1; songGain.connect(actx.destination);
+}
+const chords = [['C4','E4','G4'],['A4','C5','E5'],['F4','A4','C5'],['G4','B4','D5']];
+let bar = 0;
+function playBar(){
+  const ch = chords[bar++ % 4], t0 = actx.currentTime + .05, step = .32;
+  [0,1,2,1,2,1].forEach((n,i) => tone(F[ch[n]], t0 + i*step, .9, .09, bgGain));
+  bgTimer = setTimeout(playBar, step * 6 * 1000 - 40);
+}
+function startMusic(){
+  initAudio(); if(!actx) return;
+  if(actx.state === 'suspended') actx.resume();
+  if(!bgOn){ bgOn = true; playBar(); }
+  $('#mute').classList.add('show');
+}
+function birthdaySong(){
+  if(!actx || muted) return;
+  const seq = [['G4',.75],['G4',.25],['A4',1],['G4',1],['C5',1],['B4',2],
+    ['G4',.75],['G4',.25],['A4',1],['G4',1],['D5',1],['C5',2],
+    ['G4',.75],['G4',.25],['G5',1],['E5',1],['C5',1],['B4',1],['A4',2],
+    ['F5',.75],['F5',.25],['E5',1],['C5',1],['D5',1],['C5',2]];
+  const beat = .5; let t = actx.currentTime + .1;
+  bgGain.gain.setTargetAtTime(0, actx.currentTime, .1);
+  seq.forEach(([n,b]) => { tone(F[n], t, Math.max(b*beat*1.6,.5), .22, songGain); t += b*beat; });
+  setTimeout(() => bgGain.gain.setTargetAtTime(.5, actx.currentTime, .6), (t - actx.currentTime) * 1000);
+}
+$('#mute').onclick = () => {
+  muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊';
+  if(bgGain){ bgGain.gain.value = muted ? 0 : .5; songGain.gain.value = muted ? 0 : 1; }
+};
+
 /* Navigation */
 function go(id){
   $$('section').forEach(s => s.classList.toggle('active', s.id === id));
@@ -267,7 +319,7 @@ $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 
 /* Umschlag */
 $('#env').onclick = e => {
-  e.currentTarget.classList.add('open');
+  e.currentTarget.classList.add('open'); startMusic();
   burst(innerWidth/2, innerHeight/2, 80);
   setTimeout(() => { go('s1'); burst(); }, 900);
 };
@@ -286,7 +338,7 @@ $$('.candle').forEach(c => c.onclick = () => {
   if(c.classList.contains('out')) return;
   c.classList.add('out'); out++;
   if(out === 3){
-    $('#wish').textContent = 'Wünsch dir was! 🤫✨';
+    $('#wish').textContent = 'Wünsch dir was! 🤫✨'; birthdaySong();
     burst(innerWidth/2, innerHeight/2, 160);
     $('#next2').style.display = 'inline-block';
   }
