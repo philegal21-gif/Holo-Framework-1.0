@@ -15,3 +15,10 @@ Wolken der Erde (2048 × 1024, equirektangular).
 
 - NASA-basierte Karte, bezogen über das npm-Paket `earth-visualization` (MIT)
 - NASA-Bilder sind gemeinfrei; Namensnennung erwünscht
+
+## earth-height.png
+
+Höhenkarte der Erde (2048 × 1024, Graustufen, Meer = 0), Grundlage der Höhenlinien.
+
+- NASA-basierte Topografie, bezogen über das npm-Paket `earth-visualization` (MIT), Datei `dist/textures/topography_2048x1024.png`
+- NASA-Bilder sind gemeinfrei; Namensnennung erwünscht
