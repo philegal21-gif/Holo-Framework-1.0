@@ -40,7 +40,7 @@ const OUTRO_REDUCED = { fly: 150, stagger: 0 };
 
 // Zoom der Erde (Mausrad, Pinch, +/-): Faktor auf die Grundgröße
 const ZOOM_MIN = 0.7;
-const ZOOM_MAX = 2.6;
+const ZOOM_MAX = 5;
 
 export class OrbitMenu {
   constructor(rootEl, options = {}) {
