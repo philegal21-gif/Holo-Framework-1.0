@@ -143,12 +143,9 @@
 <!-- 2: Begrüßung -->
 <section id="s1">
   <p class="script" style="font-size:1.6rem">Heute dreht sich alles um</p>
-  <h1 id="title">Mama</h1>
+  <h1 id="title">Beate</h1>
   <div class="age" id="age" title="Tipp mich!">60</div>
   <p class="sub">Geboren 1966 – ein richtig guter Jahrgang! 🍷<br>Tipp auf die Zahl, sie mag das.</p>
-  <div class="namebox">
-    <input id="name" maxlength="20" placeholder="Name eintippen…" aria-label="Name">
-  </div><br>
   <button class="btn" data-go="s2">Weiter 🎂</button>
 </section>
 
@@ -201,7 +198,7 @@
 <!-- 6: Brief -->
 <section id="s5">
   <div class="letter">
-    <div class="script" id="dear">Liebe Mama,</div>
+    <div class="script" id="dear">Liebe Beate,</div>
     <p>zu deinem <b>60. Geburtstag</b> gratuliere ich dir von Herzen!</p>
     <p>Ich wünsche dir Gesundheit, Glück und Zufriedenheit für das neue Lebensjahr, viele schöne Stunden mit den Menschen, die dir wichtig sind, und einen Tag, an dem du dich ganz in Ruhe feiern lässt.</p>
     <p>Alles Gute und herzlichen Glückwunsch!</p>
@@ -274,14 +271,6 @@ $('#env').onclick = e => {
   burst(innerWidth/2, innerHeight/2, 80);
   setTimeout(() => { go('s1'); burst(); }, 900);
 };
-
-/* Name */
-function setName(){
-  const n = $('#name').value.trim() || 'Mama';
-  $('#title').textContent = n;
-  $('#dear').textContent = 'Liebe ' + n + ',';
-}
-$('#name').addEventListener('input', setName);
 
 /* Alter-Kreis */
 const quips = ['Ui, das kitzelt!','Noch jung!','Fabelhaft!','Wie 40!','Jahrgang 1966 💎','Stark!'];
