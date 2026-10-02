@@ -123,6 +123,7 @@
   .sign{text-align:right;margin-top:12px}
 
   canvas{position:fixed;inset:0;pointer-events:none;z-index:50}
+  #fw{z-index:49}
   .floaty{position:fixed;pointer-events:none;z-index:40;font-size:24px;animation:up 1.2s forwards}
   @keyframes up{to{transform:translateY(-90px) scale(1.6);opacity:0}}
   .bg-dec{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden}
@@ -134,6 +135,7 @@
 </head>
 <body>
 <div class="bg-dec" id="bgdec"></div>
+<canvas id="fw"></canvas>
 <canvas id="confetti"></canvas>
 <button class="mute" id="mute" aria-label="Musik an/aus">🔊</button>
 
@@ -207,7 +209,7 @@
     <p>Alles Gute und herzlichen Glückwunsch!</p>
     <p class="sign script" style="font-size:1.7rem;color:#e0407f">Alles Liebe</p>
   </div>
-  <button class="btn" id="party">🎉 Konfetti-Party!</button>
+  <button class="btn" id="party">🎆 Konfetti & Feuerwerk!</button>
   <button class="btn alt" id="again">↺ Nochmal von vorn</button>
 </section>
 
@@ -218,7 +220,8 @@ const $$ = s => [...document.querySelectorAll(s)];
 /* Konfetti */
 const cv = $('#confetti'), cx = cv.getContext('2d');
 let pieces = [];
-function resize(){ cv.width = innerWidth; cv.height = innerHeight; }
+const fw = $('#fw'), fx = fw.getContext('2d');
+function resize(){ cv.width = fw.width = innerWidth; cv.height = fw.height = innerHeight; }
 addEventListener('resize', resize); resize();
 const cols = ['#ff7eb6','#ffc83d','#8fe3c8','#8ecbff','#c79bff','#ff9a76'];
 function burst(x = innerWidth/2, y = innerHeight/3, n = 120){
@@ -238,6 +241,48 @@ function loop(){
     cx.globalAlpha = Math.min(1,p.life/40); cx.fillRect(-p.w/2,-p.h/2,p.w,p.h); cx.restore();
   }
   if(pieces.length) requestAnimationFrame(loop);
+}
+
+/* Feuerwerk */
+let rockets = [], sparks = [], fwRun = false;
+function firework(n = 1){ for(let i=0;i<n;i++) setTimeout(launch, i*450 + Math.random()*200); }
+function launch(){
+  const H = fw.height;
+  rockets.push({x:fw.width*(.15 + Math.random()*.7), y:H, vx:(Math.random()-.5)*1.2,
+    vy:-(H*(.011 + Math.random()*.003)), ty:H*(.12 + Math.random()*.3), hue:Math.random()*360});
+  if(!fwRun){ fwRun = true; fwLoop(); }
+}
+function boom(){
+  if(!actx || muted || !songGain) return;
+  const t = actx.currentTime + .02;
+  kick(t, songGain); noise(t, .6, .5, 'lowpass', 500, songGain);
+  for(let i=0;i<6;i++) noise(t + .1 + Math.random()*.5, .04, .25, 'highpass', 5000, songGain);
+}
+function explode(r){
+  const n = 90, big = 4 + Math.random()*4, two = Math.random() < .4;
+  for(let i=0;i<n;i++){
+    const a = Math.PI*2*i/n, v = big*(two && i%2 ? .55 : 1) * (.9 + Math.random()*.2);
+    sparks.push({x:r.x, y:r.y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, life:70 + Math.random()*30, hue:r.hue + (two && i%2 ? 40 : 0)});
+  }
+  boom(); burst(r.x, r.y, 25);
+}
+function fwLoop(){
+  fx.globalCompositeOperation = 'destination-out'; fx.fillStyle = 'rgba(0,0,0,.2)'; fx.fillRect(0,0,fw.width,fw.height);
+  fx.globalCompositeOperation = 'lighter';
+  rockets = rockets.filter(r => {
+    r.x += r.vx; r.y += r.vy;
+    fx.fillStyle = `hsl(${r.hue},100%,80%)`; fx.beginPath(); fx.arc(r.x, r.y, 2.5, 0, 7); fx.fill();
+    if(r.y <= r.ty){ explode(r); return false; }
+    return true;
+  });
+  sparks = sparks.filter(p => {
+    p.vy += .07; p.vx *= .985; p.vy *= .985; p.x += p.vx; p.y += p.vy; p.life--;
+    fx.fillStyle = `hsla(${p.hue},100%,${55 + Math.min(p.life,30)}%,${Math.min(1,p.life/30)})`;
+    fx.beginPath(); fx.arc(p.x, p.y, 2, 0, 7); fx.fill();
+    return p.life > 0;
+  });
+  if(rockets.length || sparks.length) requestAnimationFrame(fwLoop);
+  else { fx.clearRect(0,0,fw.width,fw.height); fwRun = false; }
 }
 
 /* Herzchen bei jedem Tipp */
@@ -380,6 +425,7 @@ function go(id){
   $$('section').forEach(s => s.classList.toggle('active', s.id === id));
   scrollTo(0,0);
   if(id === 's3') startBalloons();
+  if(id === 's5') setTimeout(() => firework(3), 500);
 }
 $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 
@@ -404,7 +450,7 @@ $$('.candle').forEach(c => c.onclick = () => {
   if(c.classList.contains('out')) return;
   c.classList.add('out'); out++;
   if(out === 3){
-    $('#wish').textContent = 'Wünsch dir was! 🤫✨'; birthdaySong();
+    $('#wish').textContent = 'Wünsch dir was! 🤫✨'; birthdaySong(); firework(3);
     burst(innerWidth/2, innerHeight/2, 160);
     $('#next2').style.display = 'inline-block';
   }
@@ -433,7 +479,7 @@ function spawn(){
     t.className = 'floaty'; t.style.cssText = `left:${Math.max(8,r.left-30)}px;top:${r.top}px;font-size:18px;font-weight:bold;color:#e0407f;white-space:nowrap`;
     t.textContent = msgs[i % msgs.length]; document.body.appendChild(t); setTimeout(() => t.remove(), 1200);
     b.remove(); $('#popc').textContent = ++popped;
-    if(popped >= 8){ $('#next3').style.display = 'inline-block'; burst(); }
+    if(popped >= 8){ $('#next3').style.display = 'inline-block'; burst(); firework(2); }
   };
   b.addEventListener('animationend', () => { if(b.isConnected){ b.remove(); spawned--; spawn(); } });
   $('#sky').appendChild(b);
@@ -445,6 +491,7 @@ $$('.card').forEach(c => c.onclick = () => c.classList.toggle('flip'));
 /* Finale */
 $('#party').onclick = () => {
   for(let i=0;i<5;i++) setTimeout(() => burst(Math.random()*innerWidth, Math.random()*innerHeight*.5, 100), i*250);
+  firework(7);
 };
 $('#again').onclick = () => {
   out = 0; $$('.candle').forEach(c => c.classList.remove('out'));
