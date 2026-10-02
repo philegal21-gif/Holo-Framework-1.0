@@ -261,52 +261,118 @@ for(let i=0;i<14;i++){
 }
 
 
-/* Musik (Spieluhr-Klang, direkt im Browser erzeugt) */
-let actx, bgGain, songGain, muted = false, bgOn = false, bgTimer;
-const F = {C4:261.63,E4:329.63,F4:349.23,G4:392,A4:440,B4:493.88,C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99};
-function tone(f, t, d, v, dest){
-  const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
-  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2;
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .01);
-  g.gain.exponentialRampToValueAtTime(.0001, t + d);
-  o.connect(g); o2.connect(g); g.connect(dest);
-  o.start(t); o2.start(t); o.stop(t + d + .05); o2.stop(t + d + .05);
-}
+/* Musik (komplett im Browser erzeugt: Schlagzeug, Bass, Akkorde, Melodie) */
+let actx, bgGain, songGain, bus, noiseBuf, muted = false, bgOn = false, nextT = 0, bar = 0;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const NOTE = {G4:67,A4:69,B4:71,C5:72,D5:74,E5:76,F5:77,G5:79};
 function initAudio(){
   if(actx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
   if(!AC) return;
   actx = new AC();
-  bgGain = actx.createGain(); bgGain.gain.value = .5; bgGain.connect(actx.destination);
-  songGain = actx.createGain(); songGain.gain.value = muted ? 0 : 1; songGain.connect(actx.destination);
+  const comp = actx.createDynamicsCompressor(); comp.connect(actx.destination);
+  bus = actx.createGain(); bus.gain.value = .8; bus.connect(comp);
+  // Hall
+  const len = actx.sampleRate * 1.8, ir = actx.createBuffer(2, len, actx.sampleRate);
+  for(let c=0;c<2;c++){ const d = ir.getChannelData(c); for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.5); }
+  const verb = actx.createConvolver(); verb.buffer = ir;
+  const send = actx.createGain(); send.gain.value = .28; bus.connect(send); send.connect(verb); verb.connect(comp);
+  bgGain = actx.createGain(); bgGain.gain.value = muted ? 0 : .55; bgGain.connect(bus);
+  songGain = actx.createGain(); songGain.gain.value = muted ? 0 : 1; songGain.connect(bus);
+  noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+  const nd = noiseBuf.getChannelData(0); for(let i=0;i<nd.length;i++) nd[i] = Math.random()*2-1;
 }
-const chords = [['C4','E4','G4'],['A4','C5','E5'],['F4','A4','C5'],['G4','B4','D5']];
-let bar = 0;
+function env(g, t, a, d, v){
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v, t + a);
+  g.gain.exponentialRampToValueAtTime(.0001, t + a + d);
+}
+function pluck(m, t, d, v, dest){
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = 'sawtooth'; o2.type = 'square'; o.frequency.value = mtof(m); o2.frequency.value = mtof(m); o2.detune.value = 7;
+  f.type = 'lowpass'; f.frequency.setValueAtTime(4200, t); f.frequency.exponentialRampToValueAtTime(700, t + d);
+  env(g, t, .01, d, v);
+  o.connect(f); o2.connect(f); f.connect(g); g.connect(dest);
+  o.start(t); o2.start(t); o.stop(t + d + .1); o2.stop(t + d + .1);
+}
+function pad(ms, t, d, v, dest){
+  const f = actx.createBiquadFilter(), g = actx.createGain();
+  f.type = 'lowpass'; f.frequency.value = 1400;
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v, t + .12);
+  g.gain.setValueAtTime(v, t + d - .2); g.gain.linearRampToValueAtTime(.0001, t + d);
+  f.connect(g); g.connect(dest);
+  ms.forEach(m => [-8, 8].forEach(dt => {
+    const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = dt;
+    o.connect(f); o.start(t); o.stop(t + d + .05);
+  }));
+}
+function bassNote(m, t, d, v, dest){
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
+  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = mtof(m); o2.frequency.value = mtof(m);
+  env(g, t, .01, d, v); o.connect(g); o2.connect(g); g.connect(dest);
+  o.start(t); o2.start(t); o.stop(t + d + .1); o2.stop(t + d + .1);
+}
+function kick(t, dest){
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + .14);
+  env(g, t, .004, .22, .9); o.connect(g); g.connect(dest); o.start(t); o.stop(t + .3);
+}
+function noise(t, d, v, type, freq, dest){
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+  s.buffer = noiseBuf; f.type = type; f.frequency.value = freq; if(type === 'bandpass') f.Q.value = 1.2;
+  env(g, t, .003, d, v); s.connect(f); f.connect(g); g.connect(dest); s.start(t); s.stop(t + d + .05);
+}
+// C - G - Am - F, je Takt 8 Achtel
+const PROG = [
+  {bass:48, chord:[60,64,67], lead:[76,0,72,76,79,0,76,72]},
+  {bass:43, chord:[59,62,67], lead:[74,0,71,74,79,0,74,71]},
+  {bass:45, chord:[60,64,69], lead:[72,0,76,72,81,0,76,72]},
+  {bass:41, chord:[60,65,69], lead:[72,0,69,72,77,0,72,69]}
+];
+const EIGHTH = 60 / 112 / 2;
 function playBar(){
-  const ch = chords[bar++ % 4], t0 = actx.currentTime + .05, step = .32;
-  [0,1,2,1,2,1].forEach((n,i) => tone(F[ch[n]], t0 + i*step, .9, .09, bgGain));
-  bgTimer = setTimeout(playBar, step * 6 * 1000 - 40);
+  if(!bgOn) return;
+  const p = PROG[bar++ % 4], t0 = nextT, e = EIGHTH;
+  pad(p.chord, t0, e*8, .05, bgGain);
+  for(let i=0;i<8;i++){
+    const t = t0 + i*e;
+    if(i % 2 === 0) kick(t, bgGain);
+    if(i === 2 || i === 6) noise(t, .16, .35, 'bandpass', 1800, bgGain);
+    noise(t, i % 2 ? .07 : .03, i % 2 ? .12 : .06, 'highpass', 7000, bgGain);
+    if(i === 0 || i === 3 || i === 4 || i === 7) bassNote(p.bass + (i === 3 ? 12 : 0), t, e*1.8, .45, bgGain);
+    if(p.lead[i]) pluck(p.lead[i], t, e*2.2, .11, bgGain);
+    if(i === 3 || i === 7) pluck(p.chord[1] + 12, t + e*.5, e, .05, bgGain);
+  }
+  nextT += e*8;
+  setTimeout(playBar, Math.max(0, (nextT - actx.currentTime - .4) * 1000));
 }
 function startMusic(){
   initAudio(); if(!actx) return;
   if(actx.state === 'suspended') actx.resume();
-  if(!bgOn){ bgOn = true; playBar(); }
+  if(!bgOn){ bgOn = true; nextT = actx.currentTime + .15; playBar(); }
   $('#mute').classList.add('show');
 }
 function birthdaySong(){
   if(!actx || muted) return;
   const seq = [['G4',.75],['G4',.25],['A4',1],['G4',1],['C5',1],['B4',2],
     ['G4',.75],['G4',.25],['A4',1],['G4',1],['D5',1],['C5',2],
-    ['G4',.75],['G4',.25],['G5',1],['E5',1],['C5',1],['B4',1],['A4',2],
+    ['G4',.75],['G4',.25],['G5',1],['E5',1],['C5',1],['B4',1],['A4',1],
     ['F5',.75],['F5',.25],['E5',1],['C5',1],['D5',1],['C5',2]];
-  const beat = .5; let t = actx.currentTime + .1;
+  const harm = [[48,[60,64,67]],[43,[59,62,67]],[43,[59,62,67]],[48,[60,64,67]],
+    [48,[60,64,67]],[41,[60,65,69]],[41,[60,65,69]],[48,[60,64,67]]];
+  const beat = .52, t0 = actx.currentTime + .15; let t = t0;
   bgGain.gain.setTargetAtTime(0, actx.currentTime, .1);
-  seq.forEach(([n,b]) => { tone(F[n], t, Math.max(b*beat*1.6,.5), .22, songGain); t += b*beat; });
-  setTimeout(() => bgGain.gain.setTargetAtTime(.5, actx.currentTime, .6), (t - actx.currentTime) * 1000);
+  harm.forEach(([r, ch], i) => {
+    const ht = t0 + i*3*beat;
+    bassNote(r, ht, 3*beat*.9, .5, songGain); bassNote(r, ht + 1.5*beat, beat, .3, songGain);
+    pad(ch, ht, 3*beat, .05, songGain);
+    ch.forEach((m, k) => pluck(m, ht + (k+1)*beat*.5, beat*1.4, .05, songGain));
+  });
+  seq.forEach(([n, b]) => { pluck(NOTE[n] + 0, t, Math.max(b*beat*1.7, .6), .2, songGain); t += b*beat; });
+  setTimeout(() => { if(!muted) bgGain.gain.setTargetAtTime(.55, actx.currentTime, .6); }, (t - actx.currentTime) * 1000);
 }
 $('#mute').onclick = () => {
   muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊';
-  if(bgGain){ bgGain.gain.value = muted ? 0 : .5; songGain.gain.value = muted ? 0 : 1; }
+  if(bgGain){ bgGain.gain.value = muted ? 0 : .55; songGain.gain.value = muted ? 0 : 1; }
 };
 
 /* Navigation */
