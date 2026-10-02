@@ -135,26 +135,32 @@ export function createIss(earthGroup, latLonToVec3) {
     update(boot) {
       const age = last ? Date.now() / 1000 - last.t : Infinity;
       const live = info.ok && age < MAX_AGE_S;
-      const target = live ? smoothstep(0.8, 1, boot) : 0;
-      dotMat.opacity += (target - dotMat.opacity) * 0.08;
+      let facing = 0;
+
+      if (last) {
+        // Zwischen zwei Abfragen entlang der letzten Bewegung weiterrechnen
+        let lat = last.lat;
+        let lon = last.lon;
+        if (prev && last.t > prev.t) {
+          const k = Math.min(age, MAX_AGE_S) / (last.t - prev.t);
+          let dLon = last.lon - prev.lon;
+          if (dLon > 180) dLon -= 360;
+          if (dLon < -180) dLon += 360;
+          lat = last.lat + (last.lat - prev.lat) * k;
+          lon = last.lon + dLon * k;
+        }
+        tmp.copy(latLonToVec3(lat, lon, RADIUS));
+        dotGeo.attributes.position.setXYZ(0, tmp.x, tmp.y, tmp.z);
+        dotGeo.attributes.position.needsUpdate = true;
+        // Am Erdrand ausblenden: halb verdeckt ergäbe der Punkt eine grelle Sichel
+        tmp.applyMatrix4(earthGroup.matrixWorld);
+        facing = smoothstep(0.12, 0.4, tmp.z / RADIUS);
+      }
+
+      const target = live ? smoothstep(0.8, 1, boot) * facing : 0;
+      dotMat.opacity += (target - dotMat.opacity) * 0.15;
       trailMat.opacity = dotMat.opacity * 0.55;
       dot.visible = trail.visible = dotMat.opacity > 0.01;
-      if (!dot.visible) return;
-
-      // Zwischen zwei Abfragen entlang der letzten Bewegung weiterrechnen
-      let lat = last.lat;
-      let lon = last.lon;
-      if (prev && last.t > prev.t) {
-        const k = Math.min(age, MAX_AGE_S) / (last.t - prev.t);
-        let dLon = last.lon - prev.lon;
-        if (dLon > 180) dLon -= 360;
-        if (dLon < -180) dLon += 360;
-        lat = last.lat + (last.lat - prev.lat) * k;
-        lon = last.lon + dLon * k;
-      }
-      tmp.copy(latLonToVec3(lat, lon, RADIUS));
-      dotGeo.attributes.position.setXYZ(0, tmp.x, tmp.y, tmp.z);
-      dotGeo.attributes.position.needsUpdate = true;
       dotMat.size = 0.3 + Math.sin(Date.now() / 400) * 0.03;
     },
     dispose() {
