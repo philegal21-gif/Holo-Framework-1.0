@@ -1,6 +1,12 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SavePass } from 'three/addons/postprocessing/SavePass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { ViewManager } from '../core/ViewManager.js';
 import { userLocation } from '../core/Location.js';
+import { createIss } from './EarthIss.js';
 import {
   clamp01, easeInCubic, easeOutCubic, easeInOutSine, smoothstep
 } from '../core/utils.js';
@@ -59,10 +65,74 @@ export function buildEarth(orbit, container) {
   canvas.style.top = '0';
   container.appendChild(canvas);
 
+  // ============================================================
+  // BLOOM + TONE MAPPING
+  // Pipeline: Szene → (Kopie der Szene) → Bloom → Schlusspass.
+  // Der Canvas ist durchsichtig; deshalb wird das reine Leuchten (Bloom minus
+  // Szene) getrennt und im Schlusspass auf Schwarz gerechnet:
+  //   P = Szene.rgb * Szene.alpha + weiches(Leuchten)   (premultipliziert auf Schwarz)
+  //   alpha = max(Szene.alpha, max(Leuchten))     → Leuchten bleibt auch über
+  //                                                  durchsichtigen Stellen sichtbar
+  // Wo kein Leuchten ist, kommt exakt die alte Szene heraus.
+  // Qualität: ?quality=high|low erzwingt an/aus; sonst schaltet eine Messung
+  // den Bloom bei zu langsamen Frames ab.
+  // ============================================================
+  const qualityParam = (location.search.match(/[?&]quality=(high|low)/) || [])[1];
+  orbit._bloomOn = qualityParam ? qualityParam === 'high' : true;
+  const autoQuality = !qualityParam;
+
+  const pr0 = renderer.getPixelRatio();
+  // 8 Bit wie der normale Canvas: Überlagerungen (leuchtende Linien) werden bei jedem
+  // Schritt bei 1 abgeschnitten, das Bild bleibt so identisch zum Pfad ohne Bloom
+  const composerRT = new THREE.WebGLRenderTarget(width * pr0, height * pr0, {
+    type: THREE.UnsignedByteType,
+    samples: 4
+  });
+  const composer = new EffectComposer(renderer, composerRT);
+  composer.setPixelRatio(pr0);
+  composer.setSize(width, height);
+
+  const scenePass = new RenderPass(null, camera);   // Szene wird unten gesetzt
+  const savePass = new SavePass(new THREE.WebGLRenderTarget(width * pr0, height * pr0, {
+    type: THREE.UnsignedByteType
+  }));
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.7, 0.55, 0.78);
+  const finalPass = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, tScene: { value: null } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform sampler2D tScene;
+      varying vec2 vUv;
+      void main() {
+        vec4 s = texture2D(tScene, vUv);
+        vec3 glow = max(texture2D(tDiffuse, vUv).rgb - s.rgb, 0.0);
+
+        // Weiche Schulter nur auf das Leuchten: starkes Leuchten läuft sanft aus.
+        glow = 1.0 - exp(-glow * 1.4);
+
+        // Der Canvas zeigt die Szene-Farben unverändert (ohne Leuchten kommt exakt
+        // s.rgb / s.alpha heraus); das Leuchten wird über Alpha additiv dazugemischt.
+        float a = max(s.a, max(glow.r, max(glow.g, glow.b)));
+        vec3 p = s.rgb * s.a + glow;
+        gl_FragColor = vec4(p / max(a, 1e-4), a);
+      }
+    `
+  });
+  // Render-Target-Texturen dürfen nicht über den Konstruktor (cloneUniforms) übergeben werden
+  finalPass.uniforms.tScene.value = savePass.renderTarget.texture;
+  composer.addPass(scenePass);
+  composer.addPass(savePass);
+  composer.addPass(bloomPass);
+  composer.addPass(finalPass);
+
   const earthGroup = new THREE.Group();
   // Euler XYZ: erst Drehung um die eigene Y-Achse, dann Kippen um X → geneigte Achse
   earthGroup.rotation.x = EARTH_TILT;
-  scene.add(earthGroup);
+  scene.add(earthGroup); window.__eg = earthGroup; window.__orbit = orbit;
 
   // ============================================================
   // UNSICHTBARE KUGEL
@@ -611,6 +681,10 @@ export function buildEarth(orbit, container) {
   placeHome(userLocation.get());
   orbit._unsubscribeLocation = userLocation.onChange(placeHome);
 
+  // ISS: Live-Position mit Bahnspur
+  const iss = createIss(earthGroup, latLonToVec3);
+  orbit._disposeIss = () => iss.dispose();
+
   // ============================================================
   // ATMOSPHÄRE
   // Dünner Rand-Glow. BackSide, AdditiveBlending → nur der Rand
@@ -650,6 +724,8 @@ export function buildEarth(orbit, container) {
     const w = container.clientWidth || 460;
     const h = container.clientHeight || 460;
     renderer.setSize(w, h, false);
+    composer.setSize(w, h);
+    savePass.renderTarget.setSize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
@@ -712,6 +788,7 @@ export function buildEarth(orbit, container) {
   const start = performance.now();
   let lastNow = start;
   let lastEarthFrame = 0;
+  let slowFrames = 0;
   let lastSunUpdate = start;
 
   const tick = (now) => {
@@ -730,8 +807,19 @@ export function buildEarth(orbit, container) {
     }
 
     const t = (now - start) / 1000;
-    const dt = Math.min(0.05, (now - lastNow) / 1000);
+    const rawMs = now - lastNow;
+    const dt = Math.min(0.05, rawMs / 1000);
     lastNow = now;
+
+    // Automatische Qualität: bleiben die Frames dauerhaft deutlich über dem Soll
+    // (30 fps ≈ 33 ms), wird der Bloom abgeschaltet
+    if (autoQuality && orbit._bloomOn && !orbit._earthFx) {
+      slowFrames = rawMs > 55 ? slowFrames + 1 : Math.max(0, slowFrames - 2);
+      if (slowFrames > 60) {
+        orbit._bloomOn = false;
+        console.info('[Erde] Bloom wegen niedriger Bildrate abgeschaltet (?quality=high erzwingt ihn)');
+      }
+    }
 
     // Zoom: weich auf den Zielwert, danach Auflösung nachziehen
     if (zooming) {
@@ -797,7 +885,14 @@ export function buildEarth(orbit, container) {
     pulseRing.scale.setScalar(1 + ph * 4);
     pulseMat.opacity = (1 - ph) * (1 - ph) * 0.8 * smoothstep(0.75, 1, boot);
 
-    renderer.render(scene, camera);
+    iss.update(boot);
+
+    if (orbit._bloomOn) {
+      scenePass.scene = scene;
+      composer.render();
+    } else {
+      renderer.render(scene, camera);
+    }
   };
 
   orbit._earthFx = null;

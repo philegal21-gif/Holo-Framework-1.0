@@ -1177,6 +1177,7 @@ export class OrbitMenu {
     }
     if (this._onKeyZoom) window.removeEventListener('keydown', this._onKeyZoom);
     if (typeof this._unsubscribeLocation === 'function') this._unsubscribeLocation();
+    if (typeof this._disposeIss === 'function') this._disposeIss();
     if (typeof this._unsubscribeView === 'function') {
       this._unsubscribeView();
     }
