@@ -8,8 +8,11 @@ import { userLocation } from './core/Location.js';
 import { HomeTiles } from './components/HomeTiles.js';
 import { StarField } from './core/StarField.js';
 import { BackgroundGlow } from './core/BackgroundGlow.js';
+import { VERSION } from './core/version.js';
 
 (function bootstrap() {
+  document.getElementById('app-version').textContent = `v${VERSION}`;
+
    // =========================================================
   // CURSOR
   // =========================================================
