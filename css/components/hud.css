@@ -1,7 +1,7 @@
 /* Key Hints + Bottom Controls */
 #key-hints {
   position: fixed;
-  bottom: 12px;
+  bottom: 28px;
   right: 18px;
   font-family: 'JetBrains Mono', monospace;
   font-size: .58rem;
@@ -15,6 +15,21 @@
 
 body.state-carousel #key-hints {
   opacity: 1;
+}
+
+/* Versionsnummer unten rechts – kaum sichtbar */
+#app-version {
+  position: fixed;
+  bottom: 12px;
+  right: 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .58rem;
+  color: rgba(165,172,175,0.35);
+  letter-spacing: .06em;
+  pointer-events: none;
+  user-select: none;
+  z-index: 45;
+  transition: opacity 0.6s ease;
 }
 
 /* Globale Steuerung unten links (Ton, Sternenhimmel) – klein und zurückhaltend */

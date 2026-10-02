@@ -13,6 +13,7 @@ body.is-booted .home-clock    { transition-delay: 0.5s; }
 
 body.is-booting #nav-bar,
 body.is-booting #bg-controls,
+body.is-booting #app-version,
 body.is-booting .weather-label,
 body.is-booting .home-clock {
   opacity: 0;
