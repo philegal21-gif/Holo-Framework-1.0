@@ -926,8 +926,11 @@ export function buildEarth(orbit, container) {
     contourMat.uniforms.uFade.value = fade;
     atmoMat.uniforms.uIntensity.value *= fade;
 
-    glowMat.opacity = 0.3 + fx.glow;
-    baseMat.opacity = Math.min(1, 0.7 + fx.glow * 0.4);
+    // Linien sind immer 1 px dünn: beim Herauszoomen rücken sie dichter zusammen und
+    // addieren sich zu hell, darum mit der Zoomstufe dimmen (ab Zoom 1 unverändert)
+    const lineDim = Math.min(1, Math.max(0.25, Math.pow(orbit._zoom, 1.6)));
+    glowMat.opacity = (0.3 + fx.glow) * lineDim;
+    baseMat.opacity = Math.min(1, 0.7 + fx.glow * 0.4) * (0.35 + 0.65 * lineDim);
 
     if (!orbit._rotFrozen) {
       earthGroup.rotation.y += dt * (0.12 + fx.spin);
