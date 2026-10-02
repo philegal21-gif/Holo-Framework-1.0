@@ -67,13 +67,13 @@
   .btn.alt:active{box-shadow:0 1px 0 #55b99c}
 
   /* Torte */
-  .cake{position:relative;width:240px;margin:50px auto 10px}
+  .cake{position:relative;width:240px;margin:130px auto 10px}
   .layer{height:62px;border-radius:14px;margin:0 auto;position:relative}
   .l1{width:240px;background:#ffb3d1}
   .l2{width:190px;background:#ffe0a8;margin-bottom:-4px}
   .l3{width:140px;background:#c6f0e2;height:52px;margin-bottom:-4px}
   .layer::after{content:"";position:absolute;left:0;right:0;top:0;height:18px;border-radius:14px 14px 40% 40%;background:#fff;opacity:.9}
-  .plate{width:290px;height:16px;border-radius:50%;background:#fff;margin:-4px auto 0;box-shadow:0 6px 12px rgba(0,0,0,.1)}
+  .plate{width:290px;height:16px;border-radius:50%;background:#fff;margin:-4px -25px 0;box-shadow:0 6px 12px rgba(0,0,0,.1)}
   .candles{display:flex;justify-content:center;gap:14px;position:absolute;top:-52px;left:0;right:0}
   .candle{width:12px;height:48px;border-radius:4px;position:relative;cursor:pointer}
   .candle:nth-child(1){background:var(--sky)}.candle:nth-child(2){background:var(--gold)}.candle:nth-child(3){background:var(--pink)}
@@ -117,8 +117,8 @@
   .letter{
     max-width:520px;margin:20px auto;background:#fffdf8;padding:28px 26px;border-radius:6px;
     box-shadow:0 10px 30px rgba(0,0,0,.12);transform:rotate(-1deg);text-align:left;line-height:1.7;font-size:1.1rem;
-    background-image:repeating-linear-gradient(transparent 0 30px,#f1e3d3 30px 31px);
   }
+  .letter p{margin-bottom:12px}
   .letter .script{font-size:1.9rem;color:#e0407f;margin-bottom:6px}
   .sign{text-align:right;margin-top:12px}
 
@@ -193,7 +193,7 @@
       <div class="face back">Die Serie „Star Trek“ startet im TV. Unendliche Weiten – und du mittendrin!</div></div></div>
     <div class="card"><div class="in">
       <div class="face front">🌟<small>Du</small></div>
-      <div class="face back">Und dann kamst du: ein Jahr voller Klassiker, und du bist der schönste davon.</div></div></div>
+      <div class="face back">Ein Jahr voller Klassiker – und du bist Jahrgang 1966.</div></div></div>
   </div>
   <button class="btn" data-go="s5">Zum Brief 💌</button>
 </section>
@@ -202,10 +202,10 @@
 <section id="s5">
   <div class="letter">
     <div class="script" id="dear">Liebe Mama,</div>
-    <p>heute wirst du <b>60</b> – und ehrlich: Man sieht es dir kein bisschen an.</p>
-    <p>Danke für jedes Pflaster, jeden Rat, jedes „Zieh dir was Warmes an!“ und für die Liebe, die man bei dir nie suchen muss. Ich wünsche dir Gesundheit, Lachen bis zum Bauchweh und einen Tag, an dem du dich einfach feiern lässt.</p>
-    <p>Du bist die Beste. 💖</p>
-    <p class="sign script" style="font-size:1.7rem;color:#e0407f">Alles Liebe!</p>
+    <p>zu deinem <b>60. Geburtstag</b> gratuliere ich dir von Herzen!</p>
+    <p>Ich wünsche dir Gesundheit, Glück und Zufriedenheit für das neue Lebensjahr, viele schöne Stunden mit den Menschen, die dir wichtig sind, und einen Tag, an dem du dich ganz in Ruhe feiern lässt.</p>
+    <p>Alles Gute und herzlichen Glückwunsch!</p>
+    <p class="sign script" style="font-size:1.7rem;color:#e0407f">Alles Liebe</p>
   </div>
   <button class="btn" id="party">🎉 Konfetti-Party!</button>
   <button class="btn alt" id="again">↺ Nochmal von vorn</button>
@@ -304,7 +304,7 @@ $$('.candle').forEach(c => c.onclick = () => {
 });
 
 /* Ballons */
-const msgs = ['Du bist wunderbar!','Gesundheit! 🍀','Viel Lachen 😂','Glück jeden Tag','Du rockst die 60!','Liebe ohne Ende 💖','Zeit für dich ☕','Du bist die Beste!'];
+const msgs = ['Du bist wunderbar!','Gesundheit! 🍀','Viel Lachen 😂','Glück jeden Tag','Du rockst die 60!','Liebe ohne Ende 💖','Zeit für dich ☕','Alles Gute!'];
 let popped, spawned, spawner;
 function startBalloons(){
   clearInterval(spawner); $('#sky').innerHTML = ''; popped = 0; spawned = 0;
