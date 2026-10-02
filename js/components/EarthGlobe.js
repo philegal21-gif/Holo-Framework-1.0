@@ -296,9 +296,10 @@ export function buildEarth(orbit, container) {
 
     // Grundfüllung: von Nord nach Süd leicht verlaufend
     const grad = ctx.createLinearGradient(0, 0, 0, LAND_H);
-    grad.addColorStop(0.0, 'rgba(0, 110, 125, 0.62)');
-    grad.addColorStop(0.5, 'rgba(0, 95, 108, 0.55)');
-    grad.addColorStop(1.0, 'rgba(0, 73, 83, 0.50)');
+    // Dunkles Land mit Hauch Petrol; Kanten und Küsten tragen die Farbe
+    grad.addColorStop(0.0, 'rgba(7, 32, 38, 0.86)');
+    grad.addColorStop(0.5, 'rgba(5, 26, 31, 0.86)');
+    grad.addColorStop(1.0, 'rgba(3, 20, 25, 0.86)');
     ctx.fillStyle = grad;
     ctx.fill('nonzero');
 
@@ -306,7 +307,7 @@ export function buildEarth(orbit, container) {
     ctx.clip('nonzero');
 
     // Holo-Schraffur auf dem Land
-    ctx.strokeStyle = 'rgba(140, 196, 206, 0.07)';
+    ctx.strokeStyle = 'rgba(140, 196, 206, 0.035)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let y = 0; y < LAND_H; y += 6) {
@@ -318,8 +319,8 @@ export function buildEarth(orbit, container) {
     // Weiche, helle Innenkante entlang der Küsten
     ctx.beginPath();
     polygons.forEach(rings => rings.forEach(ring => traceRing(ring, 0)));
-    ctx.strokeStyle = 'rgba(92, 160, 171, 0.45)';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(92, 170, 182, 0.6)';
+    ctx.lineWidth = 2.5;
     ctx.stroke();
 
     ctx.restore();
@@ -609,9 +610,9 @@ export function buildEarth(orbit, container) {
         dens = smoothstep(0.12, 0.95, dens);
 
         float day = smoothstep(-0.12, 0.25, ndl);
-        vec3 col = mix(vec3(0.05, 0.07, 0.11), vec3(1.0) * (0.22 + 0.85 * max(ndl, 0.0)), day);
+        vec3 col = mix(vec3(0.04, 0.07, 0.10), vec3(0.86, 0.94, 1.0) * (0.22 + 0.85 * max(ndl, 0.0)), day);
         // Nachts dünner, tagsüber deckend
-        float alpha = dens * mix(0.10, 0.50, day) * uFade;
+        float alpha = dens * mix(0.05, 0.36, day) * uFade;
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -651,7 +652,7 @@ export function buildEarth(orbit, container) {
         float land = smoothstep(0.02, 0.06, h);
         float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
         float fade = 0.2 + 0.8 * smoothstep(0.0, 0.5, facing);
-        gl_FragColor = vec4(0.35, 0.78, 0.85, line * land * fade * 0.16 * uFade);
+        gl_FragColor = vec4(0.35, 0.78, 0.85, line * land * fade * 0.11 * uFade);
       }
     `,
     transparent: true,
