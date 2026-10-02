@@ -11,6 +11,7 @@ import { smoothstep } from '../core/utils.js';
 const API = 'https://api.wheretheiss.at/v1/satellites/25544';
 const POLL_MS = 5000;
 const MAX_TRAIL = 120;         // Bahnspur: Verlauf der letzten ~45 Minuten + Live-Punkte
+const MAX_VERTS = 2400;        // Linienstützpunkte nach dem Runden der Bögen
 const RADIUS = 5.2;            // über der Oberfläche (5.0), sonst im Land verschwindend
 const MAX_AGE_S = 20;          // länger nicht aktualisiert → nicht weiter extrapolieren
 
@@ -47,7 +48,7 @@ export function createIss(earthGroup, latLonToVec3) {
   earthGroup.add(dot);
 
   const trailGeo = new THREE.BufferGeometry();
-  const trailPos = new Float32Array(MAX_TRAIL * 3);
+  const trailPos = new Float32Array(MAX_VERTS * 3);
   trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
   trailGeo.setDrawRange(0, 0);
   const trailMat = new THREE.LineBasicMaterial({
@@ -61,6 +62,8 @@ export function createIss(earthGroup, latLonToVec3) {
   trail.renderOrder = 4;
   trail.frustumCulled = false;
   earthGroup.add(trail);
+
+  const tmp = new THREE.Vector3();
 
   /** letzte zwei Messungen: { lat, lon, t } */
   let prev = null;
@@ -77,16 +80,37 @@ export function createIss(earthGroup, latLonToVec3) {
     writeTrail();
   };
 
+  // Zwischen zwei Messpunkten entlang des Kugelbogens (statt gerader Sehne) auffüllen,
+  // damit die Bahn rund wird
   const writeTrail = () => {
     if (points.length > MAX_TRAIL) points.splice(0, points.length - MAX_TRAIL);
+    let n = 0;
+    const put = (v) => {
+      if (n >= MAX_VERTS) return;
+      trailPos[n * 3] = v.x;
+      trailPos[n * 3 + 1] = v.y;
+      trailPos[n * 3 + 2] = v.z;
+      n++;
+    };
     for (let i = 0; i < points.length; i++) {
-      trailPos[i * 3] = points[i].x;
-      trailPos[i * 3 + 1] = points[i].y;
-      trailPos[i * 3 + 2] = points[i].z;
+      if (i > 0) {
+        const a = points[i - 1].clone().normalize();
+        const b = points[i].clone().normalize();
+        const ang = Math.acos(Math.min(1, Math.max(-1, a.dot(b))));
+        const steps = Math.ceil(ang / 0.02);
+        for (let k = 1; k < steps; k++) {
+          const sinA = Math.sin(ang);
+          const wa = Math.sin((1 - k / steps) * ang) / sinA;
+          const wb = Math.sin((k / steps) * ang) / sinA;
+          put(tmp.copy(a).multiplyScalar(wa).addScaledVector(b, wb).multiplyScalar(RADIUS));
+        }
+      }
+      put(points[i]);
     }
     trailGeo.attributes.position.needsUpdate = true;
-    trailGeo.setDrawRange(0, points.length);
+    trailGeo.setDrawRange(0, n);
   };
+
 
   // Beim Start die letzten 45 Minuten nachladen (10 Punkte, ein Request)
   const seedTrail = async () => {
@@ -126,8 +150,6 @@ export function createIss(earthGroup, latLonToVec3) {
     timer = setTimeout(poll, POLL_MS);
   };
   seedTrail().then(() => { writeTrail(); poll(); });
-
-  const tmp = new THREE.Vector3();
 
   return {
     info,
