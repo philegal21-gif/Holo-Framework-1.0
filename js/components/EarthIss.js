@@ -5,7 +5,7 @@ import { smoothstep } from '../core/utils.js';
  * Live-Position der ISS auf der Erde: leuchtender Punkt plus die zuletzt
  * geflogene Bahn. Position kommt alle 5 s von wheretheiss.at; dazwischen wird
  * mit der letzten Geschwindigkeit weitergerechnet, damit der Punkt gleitet.
- * Fällt die Abfrage aus, bleibt die ISS einfach unsichtbar.
+ * Fällt die Abfrage länger aus, blendet sich die ISS aus.
  */
 
 const API = 'https://api.wheretheiss.at/v1/satellites/25544';
@@ -13,7 +13,8 @@ const POLL_MS = 5000;
 const MAX_TRAIL = 120;         // Bahnspur: Verlauf der letzten ~45 Minuten + Live-Punkte
 const MAX_VERTS = 2400;        // Linienstützpunkte nach dem Runden der Bögen
 const RADIUS = 5.2;            // über der Oberfläche (5.0), sonst im Land verschwindend
-const MAX_AGE_S = 20;          // länger nicht aktualisiert → nicht weiter extrapolieren
+const MAX_AGE_S = 90;          // so lange ohne neue Messung bleibt die ISS sichtbar (danach aus)
+const EXTRAPOLATE_S = 30;      // so lange wird linear weitergerechnet, danach Position halten
 
 /**
  * @param {THREE.Group} earthGroup  Gruppe, die mit der Erde mitdreht
@@ -75,7 +76,9 @@ export function createIss(earthGroup, latLonToVec3) {
 
   const push = (lat, lon, tSec) => {
     prev = last;
-    last = { lat, lon, t: tSec };
+    // recv = Ankunftszeit auf diesem Gerät: Alter nie gegen die API-Uhr messen,
+    // eine abweichende Geräteuhr würde die ISS sonst als "veraltet" ausblenden
+    last = { lat, lon, t: tSec, recv: Date.now() / 1000 };
     points.push(latLonToVec3(lat, lon, RADIUS));
     writeTrail();
   };
@@ -155,7 +158,7 @@ export function createIss(earthGroup, latLonToVec3) {
     info,
     /** Pro Frame: Punkt bewegen und ein-/ausblenden. */
     update(boot) {
-      const age = last ? Date.now() / 1000 - last.t : Infinity;
+      const age = last ? Date.now() / 1000 - last.recv : Infinity;
       const live = info.ok && age < MAX_AGE_S;
       let facing = 0;
 
@@ -164,7 +167,7 @@ export function createIss(earthGroup, latLonToVec3) {
         let lat = last.lat;
         let lon = last.lon;
         if (prev && last.t > prev.t) {
-          const k = Math.min(age, MAX_AGE_S) / (last.t - prev.t);
+          const k = Math.min(age, EXTRAPOLATE_S) / (last.t - prev.t);
           let dLon = last.lon - prev.lon;
           if (dLon > 180) dLon -= 360;
           if (dLon < -180) dLon += 360;
