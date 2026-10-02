@@ -566,13 +566,18 @@ export function buildEarth(orbit, container) {
         float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
         float fade = 0.3 + 0.7 * smoothstep(0.0, 0.45, facing);
         // scharfe Punkte + weicher Stadtschein (unscharfe Mip-Stufe)
-        float sharp = texture2D(uLights, vUv).a;
+        float raw = texture2D(uLights, vUv).a;
+        // Unscharf maskieren: Punkte gegen ihre leicht unscharfe Umgebung absetzen,
+        // dann Kontrast anheben → kleine, knackige Lichtpunkte statt weicher Flecken
+        float soft = texture2D(uLights, vUv, 1.5).a;
+        float sharp = clamp(raw + (raw - soft) * 1.4, 0.0, 1.0);
+        sharp = pow(sharp, 1.25);
         float glow = texture2D(uLights, vUv, 3.0).a;
         // Natriumlicht: schwache Punkte orange, helle Kerne warmweiß
         vec3 amber = vec3(1.0, 0.56, 0.18);
         vec3 warm = vec3(1.0, 0.88, 0.62);
         vec3 col = mix(amber, warm, smoothstep(0.25, 0.9, sharp));
-        float l = (sharp * 1.45 + glow * 1.6) * night * fade * uAmount;
+        float l = (sharp * 1.7 + glow * 1.0) * night * fade * uAmount;
         gl_FragColor = vec4(col, min(l, 1.0));
       }
     `,
